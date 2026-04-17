@@ -11,7 +11,7 @@ import {
   formatTimeAgo,
 } from "@/lib/xpUtils";
 
-// ── Task Card (horizontal, iOS incident style) ──────────────
+// ── Task Card — style Waze incident iOS ─────────────────────
 function TaskCard({ task, householdId, onCompleted }) {
   const { user } = useAuth();
   const [completing, setCompleting] = useState(false);
@@ -48,81 +48,64 @@ function TaskCard({ task, householdId, onCompleted }) {
     <motion.button
       onClick={handleComplete}
       disabled={completing}
-      whileTap={{ scale: 0.97 }}
-      className="relative w-full flex items-center gap-4 rounded-2xl border px-4 py-3.5 text-left transition-all duration-300 overflow-hidden"
-      style={{
-        background: justDone ? "rgba(0,255,136,0.08)" : "#12122a",
-        borderColor: urgencyColor,
-        boxShadow: isOverdue && !justDone
-          ? `0 0 12px ${urgencyColor}44`
-          : justDone
-          ? "0 0 20px rgba(0,255,136,0.3)"
-          : "none",
-      }}
+      whileTap={{ scale: 0.98, opacity: 0.85 }}
+      className="relative w-full flex items-center gap-3 text-left overflow-hidden px-4 py-3.5"
+      style={{ WebkitTapHighlightColor: "transparent" }}
     >
-      {/* Left border accent */}
+      {/* Waze-style incident icon (cercle coloré) */}
       <div
-        className="absolute left-0 top-2 bottom-2 w-1 rounded-r-full"
-        style={{ background: urgencyColor }}
-      />
-
-      {/* Emoji */}
-      <motion.span
-        animate={isOverdue && !justDone ? { scale: [1, 1.15, 1] } : {}}
-        transition={{ repeat: Infinity, duration: 1.8 }}
-        className="text-3xl leading-none shrink-0 ml-1"
+        className="relative shrink-0 w-14 h-14 rounded-2xl flex items-center justify-center text-2xl"
+        style={{
+          background: justDone
+            ? "rgba(0,255,136,0.15)"
+            : `${urgencyColor}18`,
+          border: `1.5px solid ${urgencyColor}44`,
+          boxShadow: isOverdue && !justDone ? `0 0 16px ${urgencyColor}33` : "none",
+        }}
       >
-        {justDone ? "✅" : task.emoji}
-      </motion.span>
+        <motion.span
+          animate={isOverdue && !justDone ? { scale: [1, 1.15, 1] } : {}}
+          transition={{ repeat: Infinity, duration: 2 }}
+        >
+          {justDone ? "✅" : task.emoji}
+        </motion.span>
+
+        {/* Pastille urgence */}
+        {urgency >= 0.75 && !justDone && (
+          <div
+            className="absolute -top-1 -right-1 w-3 h-3 rounded-full border-2 border-game-bg"
+            style={{ background: urgencyColor }}
+          />
+        )}
+
+        {/* XP popup */}
+        <AnimatePresence>
+          {showXP && <XPGainPopup xp={task.xp_value} visible />}
+        </AnimatePresence>
+      </div>
 
       {/* Info */}
       <div className="flex-1 min-w-0">
         <p className="text-game-text font-semibold text-sm leading-tight truncate">
           {task.name}
         </p>
-        <p className="text-game-muted text-xs mt-0.5">
+        <p className="text-game-muted text-xs mt-0.5 truncate">
           {task.last_completed_username
             ? `${task.last_completed_avatar} ${task.last_completed_username} · ${formatTimeAgo(task.last_completed_at)}`
             : <span style={{ color: urgencyColor }}>Jamais fait</span>}
         </p>
       </div>
 
-      {/* Right: urgency + XP */}
+      {/* Right: XP + chevron */}
       <div className="flex flex-col items-end gap-1 shrink-0">
         <span
-          className="text-xs font-game font-bold px-2 py-0.5 rounded-lg"
-          style={{
-            color: "#f59e0b",
-            background: "rgba(245,158,11,0.15)",
-            fontSize: "10px",
-          }}
+          className="font-game font-bold px-2 py-0.5 rounded-lg"
+          style={{ color: "#f59e0b", background: "rgba(245,158,11,0.12)", fontSize: "10px" }}
         >
-          +{task.xp_value} XP
+          +{task.xp_value}
         </span>
-        {urgency >= 0.5 && !justDone && (
-          <span
-            className="font-game font-bold"
-            style={{ color: urgencyColor, fontSize: "8px" }}
-          >
-            {getUrgencyLabel(urgency)}
-          </span>
-        )}
+        <span className="text-game-muted text-xs">›</span>
       </div>
-
-      {/* Pulsing ring for overdue */}
-      {isOverdue && !justDone && (
-        <motion.div
-          className="absolute inset-0 rounded-2xl pointer-events-none"
-          animate={{ opacity: [0, 0.25, 0] }}
-          transition={{ repeat: Infinity, duration: 1.8 }}
-          style={{ border: `1px solid ${urgencyColor}` }}
-        />
-      )}
-
-      {/* XP popup */}
-      <AnimatePresence>
-        {showXP && <XPGainPopup xp={task.xp_value} visible />}
-      </AnimatePresence>
     </motion.button>
   );
 }
@@ -271,7 +254,7 @@ export default function DashboardPage() {
       <div className="mx-4 h-px bg-game-border shrink-0" />
 
       {/* Task list */}
-      <div className="flex-1 overflow-y-auto px-4 py-4 pb-24 space-y-2">
+      <div className="flex-1 overflow-y-auto pb-24">
         {loadingTasks ? (
           <p className="text-center font-pixel text-game-green text-xs py-10 animate-pulse">
             CHARGEMENT DES QUÊTES...
@@ -283,20 +266,33 @@ export default function DashboardPage() {
             <p className="text-game-muted text-xs mt-1">Vous êtes des légendes 🏆</p>
           </div>
         ) : (
-          tasks.map((task, i) => (
-            <motion.div
-              key={task.id}
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: i * 0.03 }}
+          /* Grouped list iOS style */
+          <div className="px-4 py-3">
+            <div
+              className="rounded-2xl overflow-hidden"
+              style={{ background: "#12122a", border: "1px solid #1e1e4a" }}
             >
-              <TaskCard
-                task={task}
-                householdId={householdId}
-                onCompleted={handleXPGained}
-              />
-            </motion.div>
-          ))
+              {tasks.map((task, i) => (
+                <div key={task.id}>
+                  <motion.div
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    transition={{ delay: i * 0.03 }}
+            >
+                    <TaskCard
+                      task={task}
+                      householdId={householdId}
+                      onCompleted={handleXPGained}
+                    />
+                  </motion.div>
+                  {/* iOS-style separator (pas sur le dernier) */}
+                  {i < tasks.length - 1 && (
+                    <div className="ml-20 h-px" style={{ background: "#1e1e4a" }} />
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
         )}
       </div>
 
