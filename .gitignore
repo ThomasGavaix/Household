@@ -26,12 +26,12 @@ npm-debug.log*
 .vite/
 
 # Fichiers Next.js résiduels (approche initiale abandonnée au profit de Vite)
-app/
-components/
-lib/
-middleware.ts
-next.config.mjs
-postcss.config.mjs
-tailwind.config.ts
-tsconfig.json
-.env.local.example
+/app/
+/components/
+/lib/
+/middleware.ts
+/next.config.mjs
+/postcss.config.mjs
+/tailwind.config.ts
+/tsconfig.json
+/.env.local.example
