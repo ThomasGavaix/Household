@@ -25,19 +25,11 @@ export default function SetupPage() {
     setLoading(true);
     try {
       const code = generateCode();
-      const { data: household, error: hErr } = await supabase
-        .from("households")
-        .insert({ name: householdName.trim(), invite_code: code })
-        .select()
-        .single();
-      if (hErr) throw hErr;
-
-      const { error: pErr } = await supabase
-        .from("profiles")
-        .update({ household_id: household.id })
-        .eq("id", user.id);
-      if (pErr) throw pErr;
-
+      const { error } = await supabase.rpc("create_household", {
+        p_name: householdName.trim(),
+        p_invite_code: code,
+      });
+      if (error) throw error;
       setCreatedCode(code);
     } catch (err) {
       setError(err.message);
@@ -51,18 +43,10 @@ export default function SetupPage() {
     setError(null);
     setLoading(true);
     try {
-      const { data: household, error: hErr } = await supabase
-        .from("households")
-        .select("id, name")
-        .eq("invite_code", inviteCode.trim().toUpperCase())
-        .single();
-      if (hErr || !household) throw new Error("Code invalide");
-
-      const { error: pErr } = await supabase
-        .from("profiles")
-        .update({ household_id: household.id })
-        .eq("id", user.id);
-      if (pErr) throw pErr;
+      const { error } = await supabase.rpc("join_household", {
+        p_invite_code: inviteCode.trim(),
+      });
+      if (error) throw new Error("Code invalide");
 
       await refreshProfile();
     } catch (err) {
