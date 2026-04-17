@@ -1,8 +1,25 @@
+import { useState } from "react";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import LoginPage from "@/pages/LoginPage";
 import SetupPage from "@/pages/SetupPage";
 import DashboardPage from "@/pages/DashboardPage";
+import ManagePage from "@/pages/ManagePage";
+import BottomNav from "@/components/BottomNav";
+
+function MainApp() {
+  const [activeTab, setActiveTab] = useState("quests");
+
+  return (
+    <div className="h-full flex flex-col max-w-lg mx-auto">
+      <div className="flex-1 overflow-hidden relative">
+        {activeTab === "quests" && <DashboardPage />}
+        {activeTab === "manage" && <ManagePage />}
+      </div>
+      <BottomNav active={activeTab} onChange={setActiveTab} />
+    </div>
+  );
+}
 
 function AppShell() {
   const { user, profile, loading } = useAuth();
@@ -40,7 +57,7 @@ function AppShell() {
 
   return (
     <Routes>
-      <Route path="/" element={<DashboardPage />} />
+      <Route path="/" element={<MainApp />} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );
