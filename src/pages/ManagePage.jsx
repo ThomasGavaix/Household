@@ -35,7 +35,7 @@ function AddTaskModal({ householdId, onClose, onAdded }) {
       p_frequency_hours: freq,
     });
     setLoading(false);
-    if (error) { setError(error.message); return; }
+    if (error) { console.error("create_custom_task error:", error); setError(error.message); return; }
     onAdded();
     onClose();
   }
@@ -126,7 +126,11 @@ function AddTaskModal({ householdId, onClose, onAdded }) {
             </div>
           </div>
 
-          {error && <p className="text-game-red text-sm">⚠️ {error}</p>}
+          {error && (
+            <div className="rounded-xl px-4 py-3" style={{ background: "rgba(255,59,48,0.15)", border: "1px solid rgba(255,59,48,0.4)" }}>
+              <p className="text-game-red text-sm font-game font-semibold">⚠️ {error}</p>
+            </div>
+          )}
 
           <button
             type="submit" disabled={loading || !name.trim()}
@@ -228,6 +232,13 @@ export default function ManagePage() {
             </div>
           )}
         </section>
+      </div>
+
+      {/* Version footer */}
+      <div className="shrink-0 py-4 text-center">
+        <p className="text-game-muted font-game" style={{ fontSize: "10px" }}>
+          HOUSEHOLD QUEST · v{__APP_VERSION__}
+        </p>
       </div>
 
       {/* Add modal */}

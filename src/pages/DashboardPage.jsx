@@ -223,7 +223,7 @@ export default function DashboardPage() {
           <h1 className="font-pixel text-game-green neon-green" style={{ fontSize: "10px" }}>
             HOUSEHOLD QUEST
           </h1>
-          <p className="text-game-muted" style={{ fontSize: "8px" }}>
+          <p className="text-game-muted" style={{ fontSize: "10px" }}>
             v{__APP_VERSION__}
             {overdueCount > 0 && (
               <span className="text-game-red ml-2">
