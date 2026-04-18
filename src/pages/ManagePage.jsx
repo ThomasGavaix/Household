@@ -28,7 +28,7 @@ function AddTaskModal({ householdId, onClose, onAdded }) {
     e.preventDefault();
     setError(null);
     setLoading(true);
-    const { error } = await supabase.from("task_types").insert({
+    const { data, error } = await supabase.from("task_types").insert({
       name: name.trim(),
       emoji,
       xp_value: xp,
@@ -36,10 +36,10 @@ function AddTaskModal({ householdId, onClose, onAdded }) {
       household_id: householdId,
       description: "",
       sort_order: 999,
-    });
+    }).select().single();
     setLoading(false);
     if (error) { setError(`${error.message} (${error.code})`); return; }
-    onAdded();
+    onAdded(data);
     onClose();
   }
 
@@ -165,6 +165,14 @@ export default function ManagePage() {
     setLoading(false);
   }
 
+  function handleTaskAdded(newTask) {
+    if (newTask) {
+      setTasks((prev) => [...prev, newTask]);
+    } else {
+      fetchTasks();
+    }
+  }
+
   useEffect(() => {
     fetchTasks();
   }, []);
@@ -250,7 +258,7 @@ export default function ManagePage() {
           <AddTaskModal
             householdId={householdId}
             onClose={() => setShowAdd(false)}
-            onAdded={fetchTasks}
+            onAdded={handleTaskAdded}
           />
         )}
       </AnimatePresence>
