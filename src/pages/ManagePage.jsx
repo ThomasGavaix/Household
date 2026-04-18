@@ -28,14 +28,17 @@ function AddTaskModal({ householdId, onClose, onAdded }) {
     e.preventDefault();
     setError(null);
     setLoading(true);
-    const { error } = await supabase.rpc("create_custom_task", {
-      p_name: name.trim(),
-      p_emoji: emoji,
-      p_xp_value: xp,
-      p_frequency_hours: freq,
+    const { error } = await supabase.from("task_types").insert({
+      name: name.trim(),
+      emoji,
+      xp_value: xp,
+      frequency_hours: freq,
+      household_id: householdId,
+      description: "",
+      sort_order: 999,
     });
     setLoading(false);
-    if (error) { console.error("create_custom_task error:", error); setError(error.message); return; }
+    if (error) { console.error("insert task error:", error); setError(`${error.message} (${error.code})`); return; }
     onAdded();
     onClose();
   }
