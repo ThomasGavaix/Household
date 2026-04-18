@@ -2,6 +2,7 @@ import { motion } from "framer-motion";
 
 const TABS = [
   { id: "quests", label: "Quêtes", icon: "⚔️" },
+  { id: "score", label: "Score", icon: "📊" },
   { id: "manage", label: "Gérer", icon: "⚙️" },
   { id: "debug", label: "Debug", icon: "🔍" },
 ];
