@@ -110,6 +110,43 @@ function TaskCard({ task, householdId, onCompleted }) {
   );
 }
 
+// ── One-shot task card ───────────────────────────────────────
+const ONE_SHOT_EMOJIS = ["📋","📬","🏛️","🧾","💊","🔑","🛠️","🎁","📞","🗂️","🚗","✈️"];
+
+function OneShotCard({ task, onComplete, onDelete }) {
+  const [completing, setCompleting] = useState(false);
+  const [showXP, setShowXP] = useState(false);
+
+  async function handleComplete() {
+    if (completing) return;
+    setCompleting(true);
+    setShowXP(true);
+    setTimeout(() => setShowXP(false), 900);
+    setTimeout(() => onComplete(task), 1000);
+  }
+
+  return (
+    <motion.div
+      layout
+      exit={{ opacity: 0, x: 40 }}
+      className="flex items-center gap-3 px-4 py-3"
+    >
+      <button
+        onClick={handleComplete}
+        disabled={completing}
+        className="relative shrink-0 w-10 h-10 rounded-xl flex items-center justify-center text-xl transition-all active:scale-90"
+        style={{ background: completing ? "rgba(0,255,136,0.15)" : "rgba(124,58,237,0.12)", border: `1.5px solid ${completing ? "#00ff88" : "#7c3aed"}44` }}
+      >
+        {completing ? "✅" : task.emoji}
+        <AnimatePresence>{showXP && <XPGainPopup xp={task.xp_value} visible />}</AnimatePresence>
+      </button>
+      <p className="flex-1 text-game-text text-sm font-semibold truncate">{task.name}</p>
+      <span className="font-game text-xs shrink-0" style={{ color: "#f59e0b" }}>+{task.xp_value}</span>
+      <button onClick={() => onDelete(task.id)} className="shrink-0 text-game-muted hover:text-game-red transition-colors text-sm ml-1">×</button>
+    </motion.div>
+  );
+}
+
 // ── Dashboard ────────────────────────────────────────────────
 export default function DashboardPage() {
   const { user, profile, refreshProfile } = useAuth();
@@ -119,6 +156,10 @@ export default function DashboardPage() {
   const [levelUpVisible, setLevelUpVisible] = useState(false);
   const [xpFlash, setXpFlash] = useState(null);
   const [prevLevel, setPrevLevel] = useState(profile?.level ?? 1);
+  const [oneShotTasks, setOneShotTasks] = useState([]);
+  const [showAddOneShot, setShowAddOneShot] = useState(false);
+  const [newName, setNewName] = useState("");
+  const [newEmoji, setNewEmoji] = useState("📋");
 
   const householdId = profile?.household_id;
 
@@ -157,6 +198,47 @@ export default function DashboardPage() {
   }, [householdId]);
 
   useEffect(() => { fetchTasks(); }, [fetchTasks]);
+
+  // ── One-shot tasks ──
+  const fetchOneShotTasks = useCallback(async () => {
+    if (!householdId) return;
+    const { data, error } = await supabase
+      .from("one_shot_tasks")
+      .select("*")
+      .eq("household_id", householdId)
+      .is("completed_at", null)
+      .order("created_at");
+    if (!error) setOneShotTasks(data ?? []);
+  }, [householdId]);
+
+  useEffect(() => { fetchOneShotTasks(); }, [fetchOneShotTasks]);
+
+  async function addOneShotTask() {
+    if (!newName.trim()) return;
+    const { data, error } = await supabase
+      .from("one_shot_tasks")
+      .insert({ name: newName.trim(), emoji: newEmoji, xp_value: 15, household_id: householdId })
+      .select().single();
+    if (!error && data) {
+      setOneShotTasks((prev) => [...prev, data]);
+      setNewName("");
+      setNewEmoji("📋");
+      setShowAddOneShot(false);
+    }
+  }
+
+  async function completeOneShotTask(task) {
+    await supabase.from("one_shot_tasks")
+      .update({ completed_at: new Date().toISOString(), completed_by: user.id })
+      .eq("id", task.id);
+    setOneShotTasks((prev) => prev.filter((t) => t.id !== task.id));
+    handleXPGained(task.xp_value);
+  }
+
+  async function deleteOneShotTask(id) {
+    await supabase.from("one_shot_tasks").delete().eq("id", id);
+    setOneShotTasks((prev) => prev.filter((t) => t.id !== id));
+  }
 
   // ── Fetch partner + invite code ──
   const [inviteCode, setInviteCode] = useState(null);
@@ -303,6 +385,90 @@ export default function DashboardPage() {
             </div>
           </div>
         )}
+
+        {/* ── Quêtes uniques ── */}
+        <div className="px-4 pt-2 pb-3">
+          <div className="flex items-center justify-between mb-2">
+            <h2 className="font-game font-semibold text-xs tracking-wider uppercase" style={{ color: "#f59e0b" }}>
+              À FAIRE
+            </h2>
+            <button
+              onClick={() => setShowAddOneShot((v) => !v)}
+              className="font-game font-bold text-xs px-2 py-1 rounded-lg transition-all"
+              style={{ color: "#f59e0b", background: "rgba(245,158,11,0.12)" }}
+            >
+              {showAddOneShot ? "✕" : "+ AJOUTER"}
+            </button>
+          </div>
+
+          {/* Formulaire rapide */}
+          <AnimatePresence>
+            {showAddOneShot && (
+              <motion.div
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: "auto" }}
+                exit={{ opacity: 0, height: 0 }}
+                className="overflow-hidden mb-3"
+              >
+                <div className="rounded-2xl p-3 space-y-2" style={{ background: "#12122a", border: "1px solid #1e1e4a" }}>
+                  {/* Emoji picker */}
+                  <div className="flex flex-wrap gap-1.5">
+                    {ONE_SHOT_EMOJIS.map((e) => (
+                      <button key={e} onClick={() => setNewEmoji(e)}
+                        className="text-lg p-1 rounded-lg transition-all"
+                        style={{ background: newEmoji === e ? "rgba(245,158,11,0.25)" : "transparent" }}
+                      >{e}</button>
+                    ))}
+                  </div>
+                  <div className="flex gap-2">
+                    <input
+                      value={newName}
+                      onChange={(e) => setNewName(e.target.value)}
+                      onKeyDown={(e) => e.key === "Enter" && addOneShotTask()}
+                      placeholder="Nom de la quête..."
+                      maxLength={50}
+                      className="flex-1 bg-game-bg border border-game-border rounded-xl px-3 py-2 text-sm text-game-text placeholder-game-muted focus:outline-none focus:border-game-gold"
+                    />
+                    <button
+                      onClick={addOneShotTask}
+                      disabled={!newName.trim()}
+                      className="font-game font-bold text-xs px-3 py-2 rounded-xl disabled:opacity-40"
+                      style={{ background: "rgba(245,158,11,0.2)", color: "#f59e0b" }}
+                    >
+                      OK
+                    </button>
+                  </div>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
+          {/* Liste */}
+          {oneShotTasks.length > 0 ? (
+            <div className="rounded-2xl overflow-hidden" style={{ background: "#12122a", border: "1px solid #1e1e4a" }}>
+              <AnimatePresence>
+                {oneShotTasks.map((task, i) => (
+                  <div key={task.id}>
+                    <OneShotCard
+                      task={task}
+                      onComplete={completeOneShotTask}
+                      onDelete={deleteOneShotTask}
+                    />
+                    {i < oneShotTasks.length - 1 && (
+                      <div className="ml-16 h-px" style={{ background: "#1e1e4a" }} />
+                    )}
+                  </div>
+                ))}
+              </AnimatePresence>
+            </div>
+          ) : (
+            !showAddOneShot && (
+              <p className="text-game-muted text-xs text-center py-3 font-game">
+                Aucune quête en cours
+              </p>
+            )
+          )}
+        </div>
       </div>
 
       {/* Level up overlay */}
