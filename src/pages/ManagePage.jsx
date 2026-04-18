@@ -38,7 +38,8 @@ function AddTaskModal({ householdId, onClose, onAdded }) {
       sort_order: 999,
     });
     setLoading(false);
-    if (error) { console.error("insert task error:", error); setError(`${error.message} (${error.code})`); return; }
+    if (error) { alert(`❌ Erreur: ${error.message}\nCode: ${error.code}`); setError(`${error.message} (${error.code})`); return; }
+    alert("✅ Tâche créée !");
     onAdded();
     onClose();
   }
