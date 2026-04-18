@@ -156,11 +156,11 @@ export default function ManagePage() {
   const householdId = profile?.household_id;
 
   async function fetchTasks() {
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from("task_types")
       .select("*")
-      .order("sort_order")
-      .order("created_at", { ascending: false });
+      .order("sort_order");
+    if (error) console.error("fetchTasks error:", error);
     setTasks(data ?? []);
     setLoading(false);
   }

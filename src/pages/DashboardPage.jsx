@@ -129,8 +129,7 @@ export default function DashboardPage() {
     const { data: taskTypes } = await supabase
       .from("task_types")
       .select("*")
-      .order("sort_order")
-      .order("created_at");
+      .order("sort_order");
 
     const { data: completions } = await supabase
       .from("task_completions_latest")
