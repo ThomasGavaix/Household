@@ -158,7 +158,8 @@ export default function DashboardPage() {
 
   useEffect(() => { fetchTasks(); }, [fetchTasks]);
 
-  // ── Fetch partner ──
+  // ── Fetch partner + invite code ──
+  const [inviteCode, setInviteCode] = useState(null);
   useEffect(() => {
     if (!householdId) return;
     supabase
@@ -168,6 +169,12 @@ export default function DashboardPage() {
       .neq("id", user.id)
       .single()
       .then(({ data }) => setPartner(data ?? null));
+    supabase
+      .from("households")
+      .select("invite_code")
+      .eq("id", householdId)
+      .single()
+      .then(({ data }) => setInviteCode(data?.invite_code ?? null));
   }, [householdId, user.id]);
 
   // ── Realtime completions ──
@@ -250,7 +257,7 @@ export default function DashboardPage() {
 
       {/* Player HUD */}
       <div className="shrink-0">
-        <PlayerHUD currentProfile={profile} partnerProfile={partner} />
+        <PlayerHUD currentProfile={profile} partnerProfile={partner} inviteCode={inviteCode} />
       </div>
 
       <div className="mx-4 h-px bg-game-border shrink-0" />

@@ -1,22 +1,44 @@
+import { useState } from "react";
 import { getLevelTitle, getXPProgress, getXPToNextLevel } from "@/lib/xpUtils";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
+
+function InviteSlot({ inviteCode }) {
+  const [copied, setCopied] = useState(false);
+
+  function handleCopy() {
+    if (!inviteCode) return;
+    navigator.clipboard?.writeText(inviteCode).catch(() => {});
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  }
+
+  return (
+    <button
+      onClick={handleCopy}
+      className="flex-1 bg-game-card border border-dashed border-game-border rounded-xl p-3 flex flex-col items-center justify-center gap-1 transition-all active:scale-95"
+      style={{ minHeight: 72 }}
+    >
+      <AnimatePresence mode="wait">
+        {copied ? (
+          <motion.div key="copied" initial={{ scale: 0.8 }} animate={{ scale: 1 }} exit={{ scale: 0.8 }} className="text-center">
+            <p className="text-game-green text-xs font-game font-bold">✓ Copié !</p>
+            <p className="text-game-green font-mono font-bold" style={{ fontSize: "13px" }}>{inviteCode}</p>
+          </motion.div>
+        ) : (
+          <motion.div key="invite" initial={{ scale: 0.8 }} animate={{ scale: 1 }} exit={{ scale: 0.8 }} className="text-center">
+            <p className="text-game-muted text-xs font-game">+ Inviter</p>
+            {inviteCode && (
+              <p className="text-game-muted font-mono font-bold" style={{ fontSize: "13px" }}>{inviteCode}</p>
+            )}
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </button>
+  );
+}
 
 function PlayerCard({ profile, isCurrentUser }) {
-  if (!profile) {
-    return (
-      <div
-        className="flex-1 bg-game-card border border-dashed border-game-border rounded-xl p-3 flex items-center justify-center"
-        style={{ minHeight: 72 }}
-      >
-        <div className="text-center">
-          <p className="text-game-muted text-xs font-game">+ Inviter</p>
-          <p className="text-game-muted" style={{ fontSize: "9px" }}>
-            partage le code foyer
-          </p>
-        </div>
-      </div>
-    );
-  }
+  if (!profile) return null;
 
   const progress = getXPProgress(profile.total_xp, profile.level);
   const toNext = getXPToNextLevel(profile.total_xp, profile.level);
@@ -64,11 +86,13 @@ function PlayerCard({ profile, isCurrentUser }) {
   );
 }
 
-export default function PlayerHUD({ currentProfile, partnerProfile }) {
+export default function PlayerHUD({ currentProfile, partnerProfile, inviteCode }) {
   return (
     <div className="flex gap-2 px-4 pt-3 pb-2">
       <PlayerCard profile={currentProfile} isCurrentUser />
-      <PlayerCard profile={partnerProfile} isCurrentUser={false} />
+      {partnerProfile
+        ? <PlayerCard profile={partnerProfile} isCurrentUser={false} />
+        : <InviteSlot inviteCode={inviteCode} />}
     </div>
   );
 }
