@@ -28,13 +28,11 @@ function AddTaskModal({ householdId, onClose, onAdded }) {
     e.preventDefault();
     setError(null);
     setLoading(true);
-    const { error } = await supabase.from("task_types").insert({
-      name: name.trim(),
-      emoji,
-      xp_value: xp,
-      frequency_hours: freq,
-      household_id: householdId,
-      description: "",
+    const { error } = await supabase.rpc("create_custom_task", {
+      p_name: name.trim(),
+      p_emoji: emoji,
+      p_xp_value: xp,
+      p_frequency_hours: freq,
     });
     setLoading(false);
     if (error) { setError(error.message); return; }
@@ -165,7 +163,7 @@ export default function ManagePage() {
   }, []);
 
   async function deleteTask(id) {
-    await supabase.from("task_types").delete().eq("id", id);
+    await supabase.rpc("delete_custom_task", { p_task_id: id });
     setTasks((t) => t.filter((x) => x.id !== id));
   }
 

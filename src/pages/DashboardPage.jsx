@@ -223,11 +223,14 @@ export default function DashboardPage() {
           <h1 className="font-pixel text-game-green neon-green" style={{ fontSize: "10px" }}>
             HOUSEHOLD QUEST
           </h1>
-          {overdueCount > 0 && (
-            <p className="text-game-red font-game" style={{ fontSize: "9px" }}>
-              {overdueCount} tâche{overdueCount > 1 ? "s" : ""} en retard
-            </p>
-          )}
+          <p className="text-game-muted" style={{ fontSize: "8px" }}>
+            v{__APP_VERSION__}
+            {overdueCount > 0 && (
+              <span className="text-game-red ml-2">
+                · {overdueCount} en retard
+              </span>
+            )}
+          </p>
         </div>
         <AnimatePresence>
           {xpFlash && (
