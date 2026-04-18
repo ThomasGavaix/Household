@@ -58,12 +58,26 @@ export default function DebugPage() {
   const { user, profile } = useAuth();
   const [logs, setLogs] = useState([]);
   const [running, setRunning] = useState(false);
+  const [clearing, setClearing] = useState(false);
 
   async function run() {
     setRunning(true);
     const results = await runChecks(user, profile);
     setLogs(results);
     setRunning(false);
+  }
+
+  async function clearCustomTasks() {
+    if (!profile?.household_id) return;
+    if (!confirm("Supprimer TOUTES les tâches custom du foyer ?")) return;
+    setClearing(true);
+    const { error } = await supabase
+      .from("task_types")
+      .delete()
+      .eq("household_id", profile.household_id);
+    setClearing(false);
+    if (error) alert("Erreur : " + error.message);
+    else { alert("Tâches custom supprimées."); run(); }
   }
 
   return (
@@ -73,13 +87,23 @@ export default function DebugPage() {
           <h1 className="font-game font-bold text-game-text text-base">🔍 Debug</h1>
           <p className="text-game-muted text-xs mt-0.5">Diagnostics Supabase</p>
         </div>
-        <button
-          onClick={run}
-          disabled={running}
-          className="bg-game-purple text-white px-3 py-1.5 rounded-lg text-xs font-game font-bold disabled:opacity-50"
-        >
-          {running ? "..." : "LANCER"}
-        </button>
+        <div className="flex gap-2">
+          <button
+            onClick={clearCustomTasks}
+            disabled={clearing}
+            className="text-game-red border border-game-red px-2 py-1.5 rounded-lg text-xs font-game font-bold disabled:opacity-50"
+            style={{ borderColor: "rgba(255,59,48,0.4)" }}
+          >
+            {clearing ? "..." : "🗑️ RESET"}
+          </button>
+          <button
+            onClick={run}
+            disabled={running}
+            className="bg-game-purple text-white px-3 py-1.5 rounded-lg text-xs font-game font-bold disabled:opacity-50"
+          >
+            {running ? "..." : "LANCER"}
+          </button>
+        </div>
       </div>
 
       <div className="flex-1 overflow-y-auto px-4 py-4 pb-24 space-y-3">
