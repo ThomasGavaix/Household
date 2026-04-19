@@ -148,18 +148,22 @@ export default function ManagePage() {
   const { profile } = useAuth();
   const [tasks, setTasks] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [fetchError, setFetchError] = useState(null);
+  const [deleteError, setDeleteError] = useState(null);
   const [showAdd, setShowAdd] = useState(false);
 
   const householdId = profile?.household_id;
 
   async function fetchTasks() {
-    const { data } = await supabase
+    setFetchError(null);
+    const { data, error } = await supabase
       .from("task_types")
       .select("*")
       .order("sort_order")
       .order("created_at", { ascending: false });
-    setTasks(data ?? []);
     setLoading(false);
+    if (error) { setFetchError(error.message); return; }
+    setTasks(data ?? []);
   }
 
   useEffect(() => {
@@ -167,8 +171,13 @@ export default function ManagePage() {
   }, []);
 
   async function deleteTask(id) {
-    await supabase.rpc("delete_custom_task", { p_task_id: id });
+    setDeleteError(null);
     setTasks((t) => t.filter((x) => x.id !== id));
+    const { error } = await supabase.rpc("delete_custom_task", { p_task_id: id });
+    if (error) {
+      setDeleteError(error.message);
+      fetchTasks();
+    }
   }
 
   const globalTasks = tasks.filter((t) => !t.household_id);
@@ -184,6 +193,16 @@ export default function ManagePage() {
 
       {/* Content */}
       <div className="flex-1 overflow-y-auto px-4 py-4 space-y-6 pb-24">
+        {fetchError && (
+          <div className="rounded-xl px-4 py-3" style={{ background: "rgba(255,59,48,0.15)", border: "1px solid rgba(255,59,48,0.4)" }}>
+            <p className="text-game-red text-sm font-game font-semibold">⚠️ {fetchError}</p>
+          </div>
+        )}
+        {deleteError && (
+          <div className="rounded-xl px-4 py-3" style={{ background: "rgba(255,59,48,0.15)", border: "1px solid rgba(255,59,48,0.4)" }}>
+            <p className="text-game-red text-sm font-game font-semibold">⚠️ Suppression échouée : {deleteError}</p>
+          </div>
+        )}
         {/* Custom tasks */}
         <section>
           <div className="flex items-center justify-between mb-3">
