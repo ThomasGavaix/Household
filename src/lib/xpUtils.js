@@ -61,9 +61,11 @@ export function getUrgencyLabel(urgency) {
 export function formatTimeAgo(dateString) {
   if (!dateString) return "Jamais fait";
   const diffMs = Date.now() - new Date(dateString).getTime();
-  const diffH = Math.floor(diffMs / (1000 * 60 * 60));
+  const diffMin = Math.floor(diffMs / (1000 * 60));
+  const diffH = Math.floor(diffMin / 60);
   const diffD = Math.floor(diffH / 24);
-  if (diffH < 1) return "À l'instant";
+  if (diffMin < 1) return "À l'instant";
+  if (diffMin < 60) return `Il y a ${diffMin}min`;
   if (diffH < 24) return `Il y a ${diffH}h`;
   if (diffD === 1) return "Hier";
   return `Il y a ${diffD}j`;
