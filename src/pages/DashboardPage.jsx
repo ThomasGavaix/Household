@@ -15,6 +15,9 @@ const ONESHOT_EMOJIS = [
 ];
 
 const XP_OPTIONS = [5, 10, 20, 50, 100];
+const XP_POPUP_DURATION_MS = 1000;
+const TWENTY_FOUR_HOURS_MS = 24 * 60 * 60 * 1000;
+const MAX_TASK_NAME_LENGTH = 40;
 
 // ── Task Card — style Waze incident iOS ─────────────────────
 function TaskCard({ task, householdId, onCompleted }) {
@@ -133,11 +136,11 @@ function OneShotCard({ task, onClaimed, onXPGained }) {
         .eq("id", task.id);
       if (error) throw error;
       setShowXP(true);
-      setTimeout(() => setShowXP(false), 1000);
+      setTimeout(() => setShowXP(false), XP_POPUP_DURATION_MS);
       onXPGained?.(task.xp_value);
       onClaimed?.();
     } catch (err) {
-      console.error(err);
+      console.error("Failed to claim one-shot task:", err);
     } finally {
       setClaiming(false);
     }
@@ -212,9 +215,8 @@ function AddOneShotModal({ householdId, onClose, onAdded }) {
       onAdded();
       onClose();
     } catch (err) {
-      console.error(err);
+      console.error("Failed to create one-shot task:", err);
     } finally {
-      setLoading(false);
     }
   }
 
@@ -265,7 +267,7 @@ function AddOneShotModal({ householdId, onClose, onAdded }) {
             <input
               type="text" value={name}
               onChange={(e) => setName(e.target.value)}
-              required maxLength={40}
+              required maxLength={MAX_TASK_NAME_LENGTH}
               placeholder="Nom de la tâche"
               className="w-full bg-game-bg border border-game-border rounded-xl px-4 py-3 text-game-text placeholder-game-muted focus:outline-none focus:border-game-cyan transition-all"
             />
@@ -385,7 +387,7 @@ export default function DashboardPage() {
   // ── Fetch one-shot tasks ──
   const fetchOneShotTasks = useCallback(async () => {
     if (!householdId) return;
-    const since24h = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+    const since24h = new Date(Date.now() - TWENTY_FOUR_HOURS_MS).toISOString();
     const { data } = await supabase
       .from("oneshot_tasks")
       .select("*")
