@@ -5,6 +5,8 @@ import LoginPage from "@/pages/LoginPage";
 import SetupPage from "@/pages/SetupPage";
 import DashboardPage from "@/pages/DashboardPage";
 import ManagePage from "@/pages/ManagePage";
+import ScorePage from "@/pages/ScorePage";
+import DebugPage from "@/pages/DebugPage";
 import BottomNav from "@/components/BottomNav";
 
 function MainApp() {
@@ -14,7 +16,9 @@ function MainApp() {
     <div className="h-full flex flex-col max-w-lg mx-auto">
       <div className="flex-1 overflow-hidden relative">
         {activeTab === "quests" && <DashboardPage />}
+        {activeTab === "score" && <ScorePage />}
         {activeTab === "manage" && <ManagePage />}
+        {activeTab === "debug" && <DebugPage />}
       </div>
       <BottomNav active={activeTab} onChange={setActiveTab} />
     </div>

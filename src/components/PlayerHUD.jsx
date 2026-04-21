@@ -1,62 +1,71 @@
+import { useState } from "react";
 import { getLevelTitle, getXPProgress, getXPToNextLevel } from "@/lib/xpUtils";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
+
+function InviteSlot({ inviteCode }) {
+  const [copied, setCopied] = useState(false);
+
+  function handleCopy() {
+    if (!inviteCode) return;
+    navigator.clipboard?.writeText(inviteCode).catch(() => {});
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  }
+
+  return (
+    <button
+      onClick={handleCopy}
+      className="flex-1 bg-game-card border border-dashed border-game-border rounded-xl p-3 flex flex-col items-center justify-center gap-1 transition-all active:scale-95"
+      style={{ minHeight: 72 }}
+    >
+      <AnimatePresence mode="wait">
+        {copied ? (
+          <motion.div key="copied" initial={{ scale: 0.8 }} animate={{ scale: 1 }} exit={{ scale: 0.8 }} className="text-center">
+            <p className="text-game-green text-xs font-game font-bold">✓ Copié !</p>
+            <p className="text-game-green font-mono font-bold" style={{ fontSize: "13px" }}>{inviteCode}</p>
+          </motion.div>
+        ) : (
+          <motion.div key="invite" initial={{ scale: 0.8 }} animate={{ scale: 1 }} exit={{ scale: 0.8 }} className="text-center">
+            <p className="text-game-muted text-xs font-game">+ Inviter</p>
+            {inviteCode && (
+              <p className="text-game-muted font-mono font-bold" style={{ fontSize: "13px" }}>{inviteCode}</p>
+            )}
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </button>
+  );
+}
 
 function PlayerCard({ profile, isCurrentUser }) {
-  if (!profile) {
-    return (
-      <div className="flex-1 bg-game-card border border-game-border rounded-xl p-3 opacity-50">
-        <div className="text-center">
-          <div className="text-2xl mb-1">❓</div>
-          <p className="text-game-muted text-xs font-game">EN ATTENTE</p>
-          <p className="text-game-muted" style={{ fontSize: "9px" }}>
-            Partage le code d&apos;invitation
-          </p>
-        </div>
-      </div>
-    );
-  }
+  if (!profile) return null;
 
   const progress = getXPProgress(profile.total_xp, profile.level);
   const toNext = getXPToNextLevel(profile.total_xp, profile.level);
   const title = getLevelTitle(profile.level);
   const color = isCurrentUser ? "#7c3aed" : "#00d4ff";
-  const shadow = isCurrentUser
-    ? "0 0 10px rgba(124,58,237,0.4)"
-    : "0 0 10px rgba(0,212,255,0.4)";
 
   return (
     <div
       className="flex-1 bg-game-card border rounded-xl p-3 transition-all"
-      style={{ borderColor: color, boxShadow: shadow }}
+      style={{ borderColor: `${color}66` }}
     >
-      {/* Avatar + name */}
       <div className="flex items-center gap-2 mb-2">
         <span className="text-2xl leading-none">{profile.avatar_emoji}</span>
-        <div className="min-w-0">
-          <p
-            className="font-game font-bold text-xs truncate"
-            style={{ color }}
-          >
+        <div className="min-w-0 flex-1">
+          <p className="font-game font-bold text-xs truncate" style={{ color }}>
             {profile.username}
-            {isCurrentUser && (
-              <span className="ml-1 text-game-muted font-normal"> (toi)</span>
-            )}
           </p>
           <p className="text-game-muted truncate" style={{ fontSize: "9px" }}>
             {title}
           </p>
         </div>
-        {/* Level badge */}
-        <div
-          className="ml-auto text-xs font-pixel font-bold shrink-0"
-          style={{ color }}
-        >
+        <div className="text-xs font-pixel font-bold shrink-0" style={{ color }}>
           Lv.{profile.level}
         </div>
       </div>
 
-      {/* XP bar */}
-      <div className="bg-game-bg rounded-full h-2 overflow-hidden">
+      <div className="bg-game-bg rounded-full h-1.5 overflow-hidden">
         <motion.div
           className="h-full rounded-full"
           style={{ background: color }}
@@ -70,21 +79,20 @@ function PlayerCard({ profile, isCurrentUser }) {
           {profile.total_xp} XP
         </span>
         <span className="text-game-muted" style={{ fontSize: "8px" }}>
-          {toNext} → Lv.{profile.level + 1}
+          +{toNext} → Lv.{profile.level + 1}
         </span>
       </div>
     </div>
   );
 }
 
-export default function PlayerHUD({ currentProfile, partnerProfile }) {
+export default function PlayerHUD({ currentProfile, partnerProfile, inviteCode }) {
   return (
-    <div className="flex gap-3 px-4 pt-4 pb-2">
+    <div className="flex gap-2 px-4 pt-3 pb-2">
       <PlayerCard profile={currentProfile} isCurrentUser />
-      <div className="flex items-center justify-center shrink-0">
-        <span className="font-pixel text-game-muted text-xs">VS</span>
-      </div>
-      <PlayerCard profile={partnerProfile} isCurrentUser={false} />
+      {partnerProfile
+        ? <PlayerCard profile={partnerProfile} isCurrentUser={false} />
+        : <InviteSlot inviteCode={inviteCode} />}
     </div>
   );
 }
