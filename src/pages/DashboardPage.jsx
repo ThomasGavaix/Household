@@ -197,16 +197,29 @@ export default function DashboardPage() {
   const [showAddOneShot, setShowAddOneShot] = useState(false);
   const [newName, setNewName] = useState("");
   const [newEmoji, setNewEmoji] = useState("📋");
+  const [addOneShotError, setAddOneShotError] = useState(null);
+  const [addingOneShot, setAddingOneShot] = useState(false);
+  const [tasksError, setTasksError] = useState(null);
+  const [showCompletedOneShot, setShowCompletedOneShot] = useState(false);
+  const [completedOneShotTasks, setCompletedOneShotTasks] = useState([]);
+  const [loadingCompleted, setLoadingCompleted] = useState(false);
 
   const householdId = profile?.household_id;
 
   // ── Fetch periodic tasks ──
   const fetchTasks = useCallback(async () => {
     if (!householdId) return;
-    const [{ data: taskTypes }, { data: completions }] = await Promise.all([
+    const [{ data: taskTypes, error: taskTypesError }, { data: completions }] = await Promise.all([
       supabase.from("task_types").select("*").order("sort_order"),
       supabase.from("task_completions_latest").select("*").eq("household_id", householdId),
     ]);
+    if (taskTypesError) {
+      console.error("fetchTasks error:", taskTypesError);
+      setTasksError(taskTypesError.message);
+      setLoadingTasks(false);
+      return;
+    }
+    setTasksError(null);
     const map = {};
     (completions ?? []).forEach((c) => { map[c.task_type_id] = c; });
     const enriched = (taskTypes ?? []).map((t) => {
@@ -259,10 +272,22 @@ export default function DashboardPage() {
 
   async function addOneShotTask() {
     if (!newName.trim()) return;
+    if (!householdId) {
+      setAddOneShotError("Aucun foyer associé à votre compte.");
+      return;
+    }
+    setAddingOneShot(true);
+    setAddOneShotError(null);
     const { data, error } = await supabase.from("one_shot_tasks")
       .insert({ name: newName.trim(), emoji: newEmoji, xp_value: 15, household_id: householdId })
       .select().single();
-    if (!error && data) {
+    setAddingOneShot(false);
+    if (error) {
+      console.error("addOneShotTask error:", error);
+      setAddOneShotError(error.message);
+      return;
+    }
+    if (data) {
       setOneShotTasks((prev) => [...prev, data]);
       setNewName(""); setNewEmoji("📋"); setShowAddOneShot(false);
     }
@@ -278,6 +303,24 @@ export default function DashboardPage() {
   async function deleteOneShotTask(id) {
     await supabase.from("one_shot_tasks").delete().eq("id", id);
     setOneShotTasks((prev) => prev.filter((t) => t.id !== id));
+  }
+
+  const fetchCompletedOneShotTasks = useCallback(async () => {
+    if (!householdId) return;
+    setLoadingCompleted(true);
+    const { data, error } = await supabase
+      .from("one_shot_tasks").select("*").eq("household_id", householdId)
+      .not("completed_at", "is", null)
+      .order("completed_at", { ascending: false }).limit(30);
+    if (!error) setCompletedOneShotTasks(data ?? []);
+    else console.error("fetchCompletedOneShotTasks error:", error);
+    setLoadingCompleted(false);
+  }, [householdId]);
+
+  function toggleCompletedOneShot() {
+    const next = !showCompletedOneShot;
+    setShowCompletedOneShot(next);
+    if (next && completedOneShotTasks.length === 0) fetchCompletedOneShotTasks();
   }
 
   // ── Fetch partner + invite code ──
@@ -353,10 +396,18 @@ export default function DashboardPage() {
         {/* Periodic tasks */}
         {loadingTasks ? (
           <p className="text-center font-pixel text-game-green text-xs py-10 animate-pulse">CHARGEMENT DES QUÊTES...</p>
+        ) : tasksError ? (
+          <div className="text-center py-10 px-4">
+            <div className="text-4xl mb-3">⚠️</div>
+            <p className="font-game text-game-red font-bold text-sm">Erreur de chargement</p>
+            <p className="text-game-muted text-xs mt-1">{tasksError}</p>
+            <button onClick={fetchTasks} className="mt-3 font-game font-bold text-xs px-3 py-2 rounded-xl"
+              style={{ background: "rgba(0,255,136,0.12)", color: "#00ff88" }}>Réessayer</button>
+          </div>
         ) : tasks.length === 0 ? (
           <div className="text-center py-10">
-            <div className="text-4xl mb-3">🎉</div>
-            <p className="font-game text-game-green font-bold">TOUT EST FAIT !</p>
+            <div className="text-4xl mb-3">📋</div>
+            <p className="font-game text-game-muted font-bold">Aucune tâche configurée</p>
           </div>
         ) : (
           <div className="px-4 py-3">
@@ -386,7 +437,7 @@ export default function DashboardPage() {
         <div className="px-4 pt-2 pb-3">
           <div className="flex items-center justify-between mb-2">
             <h2 className="font-game font-semibold text-xs tracking-wider uppercase" style={{ color: "#f59e0b" }}>À FAIRE</h2>
-            <button onClick={() => setShowAddOneShot((v) => !v)}
+            <button onClick={() => { setShowAddOneShot((v) => !v); setAddOneShotError(null); }}
               className="font-game font-bold text-xs px-2 py-1 rounded-lg"
               style={{ color: "#f59e0b", background: "rgba(245,158,11,0.12)" }}>
               {showAddOneShot ? "✕" : "+ AJOUTER"}
@@ -409,10 +460,15 @@ export default function DashboardPage() {
                       onKeyDown={(e) => e.key === "Enter" && addOneShotTask()}
                       placeholder="Nom de la quête..." maxLength={50}
                       className="flex-1 bg-game-bg border border-game-border rounded-xl px-3 py-2 text-sm text-game-text placeholder-game-muted focus:outline-none focus:border-game-gold" />
-                    <button onClick={addOneShotTask} disabled={!newName.trim()}
+                    <button onClick={addOneShotTask} disabled={!newName.trim() || addingOneShot}
                       className="font-game font-bold text-xs px-3 py-2 rounded-xl disabled:opacity-40"
-                      style={{ background: "rgba(245,158,11,0.2)", color: "#f59e0b" }}>OK</button>
+                      style={{ background: "rgba(245,158,11,0.2)", color: "#f59e0b" }}>
+                      {addingOneShot ? "…" : "OK"}
+                    </button>
                   </div>
+                  {addOneShotError && (
+                    <p className="text-xs font-game" style={{ color: "#ef4444" }}>⚠️ {addOneShotError}</p>
+                  )}
                 </div>
               </motion.div>
             )}
@@ -432,6 +488,43 @@ export default function DashboardPage() {
           ) : !showAddOneShot && (
             <p className="text-game-muted text-xs text-center py-3 font-game">Aucune quête en cours</p>
           )}
+
+          {/* Completed one-shot tasks history */}
+          <div className="mt-3">
+            <button
+              onClick={toggleCompletedOneShot}
+              className="font-game text-xs font-semibold tracking-wider"
+              style={{ color: "#6b7280" }}
+            >
+              {showCompletedOneShot ? "▾" : "▸"} TERMINÉES
+              {completedOneShotTasks.length > 0 && ` (${completedOneShotTasks.length})`}
+            </button>
+            <AnimatePresence>
+              {showCompletedOneShot && (
+                <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }}
+                  exit={{ opacity: 0, height: 0 }} className="overflow-hidden mt-2">
+                  {loadingCompleted ? (
+                    <p className="text-game-muted text-xs text-center py-3 font-game animate-pulse">Chargement...</p>
+                  ) : completedOneShotTasks.length === 0 ? (
+                    <p className="text-game-muted text-xs text-center py-3 font-game">Aucune quête terminée</p>
+                  ) : (
+                    <div className="rounded-2xl overflow-hidden" style={{ background: "#12122a", border: "1px solid #1e1e4a" }}>
+                      {completedOneShotTasks.map((task, i) => (
+                        <div key={task.id}>
+                          <div className="flex items-center gap-3 px-4 py-2.5 opacity-60">
+                            <span className="text-xl shrink-0">{task.emoji}</span>
+                            <p className="flex-1 text-game-text text-xs truncate line-through">{task.name}</p>
+                            <span className="text-game-muted text-xs shrink-0">{formatTimeAgo(task.completed_at)}</span>
+                          </div>
+                          {i < completedOneShotTasks.length - 1 && <div className="ml-14 h-px" style={{ background: "#1e1e4a" }} />}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
         </div>
       </div>
 
