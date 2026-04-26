@@ -149,36 +149,321 @@ function TaskCard({ task, householdId, isFlagged, onCompleted, onFlag }) {
   );
 }
 
-// ── One-shot card ────────────────────────────────────────────
-const ONE_SHOT_EMOJIS = ["📋","📬","🏛️","🧾","💊","🔑","🛠️","🎁","📞","🗂️","🚗","✈️"];
+// ── Emojis rapides pour le picker ─────────────────────────────
+const QUICK_EMOJIS = [
+  "🧹","🛒","💊","📦","🐕","🌿","🚗","📮","🔧","💡",
+  "🍳","🧺","🗑️","📞","✂️","🪥","🧴","🪣","🧽","🔑",
+  "📝","💻","🧊","🪟","🛁","🚽","🧻","🪴","🎁","✨",
+];
 
-function OneShotCard({ task, onComplete, onDelete }) {
-  const [completing, setCompleting] = useState(false);
-  const [showXP, setShowXP] = useState(false);
+// ── Modal bottom-sheet : ajouter une mission ponctuelle ────────
+function AddOneShotModal({ visible, onClose, onAdd }) {
+  const [emoji, setEmoji] = useState("✨");
+  const [name, setName] = useState("");
+  const [xpValue, setXpValue] = useState(10);
 
-  async function handleComplete() {
-    if (completing) return;
-    setCompleting(true);
-    setShowXP(true);
-    setTimeout(() => setShowXP(false), 900);
-    setTimeout(() => onComplete(task), 1000);
+  function handleClose() {
+    setEmoji("✨");
+    setName("");
+    setXpValue(10);
+    onClose();
+  }
+
+  async function handleAdd() {
+    if (!name.trim()) return;
+    await onAdd({ name: name.trim(), emoji, xpValue });
+    handleClose();
   }
 
   return (
-    <motion.div layout exit={{ opacity: 0, x: 40 }} className="flex items-center gap-3 px-4 py-3">
-      <button
-        onClick={handleComplete}
-        disabled={completing}
-        className="relative shrink-0 w-10 h-10 rounded-xl flex items-center justify-center text-xl transition-all active:scale-90"
-        style={{ background: completing ? "rgba(0,255,136,0.15)" : "rgba(124,58,237,0.12)", border: `1.5px solid ${completing ? "#00ff88" : "#7c3aed"}44` }}
+    <AnimatePresence>
+      {visible && (
+        <>
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-40"
+            style={{ background: "rgba(0,0,0,0.65)" }}
+            onClick={handleClose}
+          />
+          <motion.div
+            initial={{ y: "100%" }}
+            animate={{ y: 0 }}
+            exit={{ y: "100%" }}
+            transition={{ type: "spring", damping: 28, stiffness: 300 }}
+            className="fixed bottom-0 left-0 right-0 z-50 rounded-t-3xl px-5 pt-4 pb-10"
+            style={{ background: "#12122a", border: "1px solid #1e1e4a" }}
+          >
+            <div className="w-10 h-1 rounded-full bg-game-border mx-auto mb-4" />
+            <p className="font-pixel text-game-green text-xs mb-4">NOUVELLE MISSION</p>
+
+            {/* Emoji grid */}
+            <div className="grid grid-cols-10 gap-1.5 mb-4">
+              {QUICK_EMOJIS.map((e) => (
+                <button
+                  key={e}
+                  onClick={() => setEmoji(e)}
+                  className="text-xl h-8 w-full rounded-lg flex items-center justify-center"
+                  style={{
+                    background: emoji === e ? "rgba(124,58,237,0.25)" : "rgba(255,255,255,0.05)",
+                    border: emoji === e ? "1px solid #7c3aed" : "1px solid transparent",
+                  }}
+                >
+                  {e}
+                </button>
+              ))}
+            </div>
+
+            {/* Preview + nom */}
+            <div className="flex gap-3 items-center mb-4">
+              <div
+                className="w-12 h-12 rounded-2xl flex items-center justify-center text-2xl shrink-0"
+                style={{ background: "rgba(255,255,255,0.07)" }}
+              >
+                {emoji}
+              </div>
+              <input
+                type="text"
+                placeholder="Nom de la mission..."
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && handleAdd()}
+                className="flex-1 px-4 py-3 rounded-xl text-sm"
+                style={{
+                  background: "rgba(255,255,255,0.07)",
+                  border: "1px solid #1e1e4a",
+                  outline: "none",
+                  color: "#e2e8f0",
+                }}
+                autoFocus
+              />
+            </div>
+
+            {/* Sélecteur XP */}
+            <div className="flex gap-2 mb-5">
+              {[5, 10, 20, 50, 100].map((v) => (
+                <button
+                  key={v}
+                  onClick={() => setXpValue(v)}
+                  className="flex-1 py-2 rounded-xl text-xs font-bold"
+                  style={{
+                    background: xpValue === v ? "rgba(245,158,11,0.2)" : "rgba(255,255,255,0.05)",
+                    color: xpValue === v ? "#f59e0b" : "#888",
+                    border: xpValue === v ? "1px solid rgba(245,158,11,0.5)" : "1px solid transparent",
+                  }}
+                >
+                  {v} XP
+                </button>
+              ))}
+            </div>
+
+            <button
+              onClick={handleAdd}
+              disabled={!name.trim()}
+              className="w-full py-3.5 rounded-2xl font-semibold text-sm"
+              style={{
+                background: name.trim() ? "#7c3aed" : "rgba(124,58,237,0.25)",
+                color: name.trim() ? "#fff" : "#888",
+              }}
+            >
+              Ajouter
+            </button>
+          </motion.div>
+        </>
+      )}
+    </AnimatePresence>
+  );
+}
+
+// ── OneShotCard — 4 états ─────────────────────────────────────
+function OneShotCard({ task, myId, getProfileInfo, onClaim, onUnclaim, onComplete, onDelete }) {
+  const isDone    = !!task.completed_at;
+  const isMine    = !isDone && task.claimed_by === myId;
+  const isPartner = !isDone && !!task.claimed_by && task.claimed_by !== myId;
+
+  const [holdProgress, setHoldProgress] = useState(0);
+  const intervalRef = useRef(null);
+  const firedRef    = useRef(false);
+
+  useEffect(() => () => clearInterval(intervalRef.current), []);
+
+  function startHold() {
+    if (!isMine || firedRef.current) return;
+    firedRef.current = false;
+    intervalRef.current = setInterval(() => {
+      setHoldProgress((p) => {
+        const next = p + 100 / 30; // ~1.5 s à 50 ms
+        if (next >= 100) {
+          clearInterval(intervalRef.current);
+          if (!firedRef.current) { firedRef.current = true; onComplete(task); }
+          return 0;
+        }
+        return next;
+      });
+    }, 50);
+  }
+
+  function stopHold() {
+    clearInterval(intervalRef.current);
+    setHoldProgress(0);
+  }
+
+  const r             = 22;
+  const CX            = 28;
+  const CY            = 28;
+  const circumference = 2 * Math.PI * r;
+
+  const partnerInfo   = isPartner ? getProfileInfo(task.claimed_by) : null;
+  const completerInfo = isDone    ? getProfileInfo(task.completed_by) : null;
+
+  // ── Complété ──────────────────────────────────────────────
+  if (isDone) {
+    return (
+      <div className="flex items-center gap-3 px-4 py-3" style={{ opacity: 0.4 }}>
+        <div
+          className="w-12 h-12 rounded-2xl flex items-center justify-center text-2xl shrink-0"
+          style={{ background: "rgba(0,255,136,0.08)", border: "1px solid rgba(0,255,136,0.15)" }}
+        >
+          ✅
+        </div>
+        <div className="flex-1 min-w-0">
+          <p className="text-game-text text-sm font-semibold truncate line-through">{task.name}</p>
+          <p className="text-game-muted text-xs mt-0.5">
+            {completerInfo?.username ?? "Complété"} · {formatTimeAgo(task.completed_at)}
+          </p>
+        </div>
+        <span
+          className="text-xs font-bold px-2 py-0.5 rounded-lg shrink-0"
+          style={{ color: "#f59e0b", background: "rgba(245,158,11,0.1)" }}
+        >
+          +{task.xp_value}
+        </span>
+      </div>
+    );
+  }
+
+  // ── Pris par moi → appui long ─────────────────────────────
+  if (isMine) {
+    return (
+      <div className="flex items-center gap-3 px-4 py-3">
+        <div
+          className="relative shrink-0 cursor-pointer select-none"
+          style={{ width: 56, height: 56, touchAction: "none", WebkitUserSelect: "none" }}
+          onPointerDown={startHold}
+          onPointerUp={stopHold}
+          onPointerLeave={stopHold}
+          onPointerCancel={stopHold}
+        >
+          <svg width="56" height="56" style={{ position: "absolute", inset: 0 }}>
+            <circle cx={CX} cy={CY} r={r} fill="none" stroke="#1e1e4a" strokeWidth="3" />
+            <circle
+              cx={CX} cy={CY} r={r}
+              fill="none"
+              stroke="#7c3aed"
+              strokeWidth="3"
+              strokeLinecap="round"
+              strokeDasharray={circumference}
+              strokeDashoffset={circumference * (1 - holdProgress / 100)}
+              transform={`rotate(-90 ${CX} ${CY})`}
+            />
+          </svg>
+          <div className="absolute inset-0 flex items-center justify-center text-2xl pointer-events-none">
+            {task.emoji}
+          </div>
+        </div>
+
+        <div className="flex-1 min-w-0">
+          <p className="text-game-text text-sm font-semibold truncate">{task.name}</p>
+          <p className="text-game-muted text-xs mt-0.5">
+            {holdProgress > 0 ? "Maintenir pour terminer…" : "Appuyer longuement"}
+          </p>
+        </div>
+
+        <div className="flex flex-col items-end gap-1.5 shrink-0">
+          <span className="text-xs font-bold px-2 py-0.5 rounded-lg"
+            style={{ color: "#f59e0b", background: "rgba(245,158,11,0.12)" }}>
+            +{task.xp_value}
+          </span>
+          <button onClick={() => onUnclaim(task.id)} className="text-game-muted text-xs">
+            Annuler
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // ── Pris par le partenaire ────────────────────────────────
+  if (isPartner) {
+    return (
+      <div className="flex items-center gap-3 px-4 py-3">
+        <div
+          className="w-12 h-12 rounded-2xl flex items-center justify-center text-2xl shrink-0"
+          style={{
+            background: "rgba(255,255,255,0.04)",
+            border: "1px solid #1e1e4a",
+            opacity: 0.55,
+            filter: "grayscale(0.6)",
+          }}
+        >
+          {task.emoji}
+        </div>
+        <div className="flex-1 min-w-0">
+          <p className="text-game-text text-sm font-semibold truncate">{task.name}</p>
+          <p className="text-game-muted text-xs mt-0.5">
+            {partnerInfo?.avatar_emoji} {partnerInfo?.username ?? "Partenaire"} s'en occupe
+          </p>
+        </div>
+        <div className="flex flex-col items-end gap-1.5 shrink-0">
+          <span className="text-xs font-bold px-2 py-0.5 rounded-lg"
+            style={{ color: "#f59e0b", background: "rgba(245,158,11,0.12)" }}>
+            +{task.xp_value}
+          </span>
+          <button onClick={() => onUnclaim(task.id)} className="text-game-muted text-xs">
+            Annuler
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // ── Libre ─────────────────────────────────────────────────
+  return (
+    <div className="flex items-center gap-3 px-4 py-3">
+      <div
+        className="w-12 h-12 rounded-2xl flex items-center justify-center text-2xl shrink-0"
+        style={{ background: "rgba(124,58,237,0.1)", border: "1px solid rgba(124,58,237,0.25)" }}
       >
-        {completing ? "✅" : task.emoji}
-        <AnimatePresence>{showXP && <XPGainPopup xp={task.xp_value} visible />}</AnimatePresence>
-      </button>
-      <p className="flex-1 text-game-text text-sm font-semibold truncate">{task.name}</p>
-      <span className="font-game text-xs shrink-0" style={{ color: "#f59e0b" }}>+{task.xp_value}</span>
-      <button onClick={() => onDelete(task.id)} className="shrink-0 text-game-muted hover:text-game-red transition-colors text-sm ml-1">×</button>
-    </motion.div>
+        {task.emoji}
+      </div>
+      <div className="flex-1 min-w-0">
+        <p className="text-game-text text-sm font-semibold truncate">{task.name}</p>
+        <span className="text-xs font-bold px-2 py-0.5 rounded-lg"
+          style={{ color: "#f59e0b", background: "rgba(245,158,11,0.12)" }}>
+          +{task.xp_value}
+        </span>
+      </div>
+      <div className="flex items-center gap-2 shrink-0">
+        <button
+          onClick={() => onClaim(task.id)}
+          className="px-3 py-1.5 rounded-xl text-xs font-semibold"
+          style={{
+            background: "rgba(124,58,237,0.2)",
+            color: "#a78bfa",
+            border: "1px solid rgba(124,58,237,0.4)",
+          }}
+        >
+          Je m'en occupe
+        </button>
+        <button
+          onClick={() => onDelete(task.id)}
+          className="w-7 h-7 rounded-full flex items-center justify-center text-lg leading-none"
+          style={{ background: "rgba(255,255,255,0.06)", color: "#64748b" }}
+        >
+          ×
+        </button>
+      </div>
+    </div>
   );
 }
 
@@ -194,11 +479,7 @@ export default function DashboardPage() {
   const [xpFlash, setXpFlash] = useState(null);
   const [prevLevel, setPrevLevel] = useState(profile?.level ?? 1);
   const [oneShotTasks, setOneShotTasks] = useState([]);
-  const [showAddOneShot, setShowAddOneShot] = useState(false);
-  const [newName, setNewName] = useState("");
-  const [newEmoji, setNewEmoji] = useState("📋");
-  const [addOneShotError, setAddOneShotError] = useState(null);
-  const [addingOneShot, setAddingOneShot] = useState(false);
+  const [showAddModal, setShowAddModal] = useState(false);
   const [tasksError, setTasksError] = useState(null);
   const [showCompletedOneShot, setShowCompletedOneShot] = useState(false);
   const [completedOneShotTasks, setCompletedOneShotTasks] = useState([]);
@@ -262,47 +543,64 @@ export default function DashboardPage() {
   // ── Fetch one-shot tasks ──
   const fetchOneShotTasks = useCallback(async () => {
     if (!householdId) return;
+    const since24h = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
     const { data, error } = await supabase
       .from("one_shot_tasks").select("*").eq("household_id", householdId)
-      .is("completed_at", null).order("created_at");
+      .or(`completed_at.is.null,completed_at.gte.${since24h}`)
+      .order("created_at", { ascending: false });
     if (!error) setOneShotTasks(data ?? []);
   }, [householdId]);
 
   useEffect(() => { fetchOneShotTasks(); }, [fetchOneShotTasks]);
 
-  async function addOneShotTask() {
-    if (!newName.trim()) return;
-    if (!householdId) {
-      setAddOneShotError("Aucun foyer associé à votre compte.");
-      return;
-    }
-    setAddingOneShot(true);
-    setAddOneShotError(null);
+  async function addOneShotTask({ name, emoji, xpValue }) {
+    if (!householdId) return;
     const { data, error } = await supabase.from("one_shot_tasks")
-      .insert({ name: newName.trim(), emoji: newEmoji, xp_value: 15, household_id: householdId })
+      .insert({ name, emoji, xp_value: xpValue, household_id: householdId, created_by: user.id })
       .select().single();
-    setAddingOneShot(false);
-    if (error) {
-      console.error("addOneShotTask error:", error);
-      setAddOneShotError(error.message);
-      return;
-    }
-    if (data) {
-      setOneShotTasks((prev) => [...prev, data]);
-      setNewName(""); setNewEmoji("📋"); setShowAddOneShot(false);
-    }
+    if (!error && data) setOneShotTasks((prev) => [data, ...prev]);
+  }
+
+  async function claimOneShotTask(id) {
+    const now = new Date().toISOString();
+    await supabase.from("one_shot_tasks")
+      .update({ claimed_by: user.id, claimed_at: now })
+      .eq("id", id);
+    setOneShotTasks((p) => p.map((t) =>
+      t.id === id ? { ...t, claimed_by: user.id, claimed_at: now } : t
+    ));
+  }
+
+  async function unclaimOneShotTask(id) {
+    await supabase.from("one_shot_tasks")
+      .update({ claimed_by: null, claimed_at: null })
+      .eq("id", id);
+    setOneShotTasks((p) => p.map((t) =>
+      t.id === id ? { ...t, claimed_by: null, claimed_at: null } : t
+    ));
   }
 
   async function completeOneShotTask(task) {
+    const now = new Date().toISOString();
     await supabase.from("one_shot_tasks")
-      .update({ completed_at: new Date().toISOString(), completed_by: user.id }).eq("id", task.id);
-    setOneShotTasks((prev) => prev.filter((t) => t.id !== task.id));
+      .update({ completed_at: now, completed_by: user.id, claimed_by: null, claimed_at: null })
+      .eq("id", task.id);
+    setOneShotTasks((p) => p.map((t) =>
+      t.id === task.id
+        ? { ...t, completed_at: now, completed_by: user.id, claimed_by: null, claimed_at: null }
+        : t
+    ));
     handleXPGained(task.xp_value);
   }
 
   async function deleteOneShotTask(id) {
     await supabase.from("one_shot_tasks").delete().eq("id", id);
     setOneShotTasks((prev) => prev.filter((t) => t.id !== id));
+  }
+
+  function getProfileInfo(userId) {
+    if (!userId) return null;
+    return userId === user.id ? profile : partner;
   }
 
   const fetchCompletedOneShotTasks = useCallback(async () => {
@@ -332,12 +630,13 @@ export default function DashboardPage() {
       .then(({ data }) => setInviteCode(data?.invite_code ?? null));
   }, [householdId, user.id]);
 
-  // ── Realtime: completions, profiles, flags ──
+  // ── Realtime: completions, profiles, flags, one_shot_tasks ──
   useEffect(() => {
     if (!householdId) return;
     const ch = supabase.channel(`dashboard-${householdId}`)
       .on("postgres_changes", { event: "INSERT", schema: "public", table: "task_completions", filter: `household_id=eq.${householdId}` }, () => fetchTasks())
       .on("postgres_changes", { event: "*", schema: "public", table: "task_flags", filter: `household_id=eq.${householdId}` }, () => fetchFlags())
+      .on("postgres_changes", { event: "*", schema: "public", table: "one_shot_tasks", filter: `household_id=eq.${householdId}` }, () => fetchOneShotTasks())
       .on("postgres_changes", { event: "UPDATE", schema: "public", table: "profiles", filter: `household_id=eq.${householdId}` }, (payload) => {
         if (payload.new.id !== user.id) {
           setPartner(payload.new);
@@ -352,7 +651,7 @@ export default function DashboardPage() {
       })
       .subscribe();
     return () => supabase.removeChannel(ch);
-  }, [householdId, user.id, prevLevel, refreshProfile, fetchTasks, fetchFlags]);
+  }, [householdId, user.id, prevLevel, refreshProfile, fetchTasks, fetchFlags, fetchOneShotTasks]);
 
   function handleXPGained(xp) {
     setXpFlash(`+${xp} XP ⚡`);
@@ -437,55 +736,33 @@ export default function DashboardPage() {
         <div className="px-4 pt-2 pb-3">
           <div className="flex items-center justify-between mb-2">
             <h2 className="font-game font-semibold text-xs tracking-wider uppercase" style={{ color: "#f59e0b" }}>À FAIRE</h2>
-            <button onClick={() => { setShowAddOneShot((v) => !v); setAddOneShotError(null); }}
+            <button onClick={() => setShowAddModal(true)}
               className="font-game font-bold text-xs px-2 py-1 rounded-lg"
               style={{ color: "#f59e0b", background: "rgba(245,158,11,0.12)" }}>
-              {showAddOneShot ? "✕" : "+ AJOUTER"}
+              + AJOUTER
             </button>
           </div>
 
-          <AnimatePresence>
-            {showAddOneShot && (
-              <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }}
-                exit={{ opacity: 0, height: 0 }} className="overflow-hidden mb-3">
-                <div className="rounded-2xl p-3 space-y-2" style={{ background: "#12122a", border: "1px solid #1e1e4a" }}>
-                  <div className="flex flex-wrap gap-1.5">
-                    {ONE_SHOT_EMOJIS.map((e) => (
-                      <button key={e} onClick={() => setNewEmoji(e)} className="text-lg p-1 rounded-lg"
-                        style={{ background: newEmoji === e ? "rgba(245,158,11,0.25)" : "transparent" }}>{e}</button>
-                    ))}
-                  </div>
-                  <div className="flex gap-2">
-                    <input value={newName} onChange={(e) => setNewName(e.target.value)}
-                      onKeyDown={(e) => e.key === "Enter" && addOneShotTask()}
-                      placeholder="Nom de la quête..." maxLength={50}
-                      className="flex-1 bg-game-bg border border-game-border rounded-xl px-3 py-2 text-sm text-game-text placeholder-game-muted focus:outline-none focus:border-game-gold" />
-                    <button onClick={addOneShotTask} disabled={!newName.trim() || addingOneShot}
-                      className="font-game font-bold text-xs px-3 py-2 rounded-xl disabled:opacity-40"
-                      style={{ background: "rgba(245,158,11,0.2)", color: "#f59e0b" }}>
-                      {addingOneShot ? "…" : "OK"}
-                    </button>
-                  </div>
-                  {addOneShotError && (
-                    <p className="text-xs font-game" style={{ color: "#ef4444" }}>⚠️ {addOneShotError}</p>
-                  )}
-                </div>
-              </motion.div>
-            )}
-          </AnimatePresence>
-
-          {oneShotTasks.length > 0 ? (
+          {oneShotTasks.filter((t) => !t.completed_at).length > 0 ? (
             <div className="rounded-2xl overflow-hidden" style={{ background: "#12122a", border: "1px solid #1e1e4a" }}>
               <AnimatePresence>
-                {oneShotTasks.map((task, i) => (
+                {oneShotTasks.filter((t) => !t.completed_at).map((task, i, arr) => (
                   <div key={task.id}>
-                    <OneShotCard task={task} onComplete={completeOneShotTask} onDelete={deleteOneShotTask} />
-                    {i < oneShotTasks.length - 1 && <div className="ml-16 h-px" style={{ background: "#1e1e4a" }} />}
+                    <OneShotCard
+                      task={task}
+                      myId={user.id}
+                      getProfileInfo={getProfileInfo}
+                      onClaim={claimOneShotTask}
+                      onUnclaim={unclaimOneShotTask}
+                      onComplete={completeOneShotTask}
+                      onDelete={deleteOneShotTask}
+                    />
+                    {i < arr.length - 1 && <div className="ml-16 h-px" style={{ background: "#1e1e4a" }} />}
                   </div>
                 ))}
               </AnimatePresence>
             </div>
-          ) : !showAddOneShot && (
+          ) : (
             <p className="text-game-muted text-xs text-center py-3 font-game">Aucune quête en cours</p>
           )}
 
@@ -543,6 +820,13 @@ export default function DashboardPage() {
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* Add one-shot modal */}
+      <AddOneShotModal
+        visible={showAddModal}
+        onClose={() => setShowAddModal(false)}
+        onAdd={addOneShotTask}
+      />
     </div>
   );
 }
