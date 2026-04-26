@@ -28,15 +28,18 @@ function AddTaskModal({ householdId, onClose, onAdded }) {
     e.preventDefault();
     setError(null);
     setLoading(true);
-    const { error } = await supabase.rpc("create_custom_task", {
-      p_name: name.trim(),
-      p_emoji: emoji,
-      p_xp_value: xp,
-      p_frequency_hours: freq,
-    });
+    const { data, error } = await supabase.from("task_types").insert({
+      name: name.trim(),
+      emoji,
+      xp_value: xp,
+      frequency_hours: freq,
+      household_id: householdId,
+      description: "",
+      sort_order: 999,
+    }).select().single();
     setLoading(false);
-    if (error) { console.error("create_custom_task error:", error); setError(error.message); return; }
-    onAdded();
+    if (error) { setError(`${error.message} (${error.code})`); return; }
+    onAdded(data);
     onClose();
   }
 
@@ -153,13 +156,21 @@ export default function ManagePage() {
   const householdId = profile?.household_id;
 
   async function fetchTasks() {
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from("task_types")
       .select("*")
-      .order("sort_order")
-      .order("created_at", { ascending: false });
+      .order("sort_order");
+    if (error) console.error("fetchTasks error:", error);
     setTasks(data ?? []);
     setLoading(false);
+  }
+
+  function handleTaskAdded(newTask) {
+    if (newTask) {
+      setTasks((prev) => [...prev, newTask]);
+    } else {
+      fetchTasks();
+    }
   }
 
   useEffect(() => {
@@ -247,7 +258,7 @@ export default function ManagePage() {
           <AddTaskModal
             householdId={householdId}
             onClose={() => setShowAdd(false)}
-            onAdded={fetchTasks}
+            onAdded={handleTaskAdded}
           />
         )}
       </AnimatePresence>
