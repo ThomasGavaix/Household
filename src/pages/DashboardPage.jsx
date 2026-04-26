@@ -10,14 +10,8 @@ import {
   formatTimeAgo,
 } from "@/lib/xpUtils";
 
-const ONESHOT_EMOJIS = [
-  "⭐","🛒","💊","🐶","🌿","📦","🔧","🪟","🚗","📞","🎁","🧾",
-];
-
-const XP_OPTIONS = [5, 10, 20, 50, 100];
 const XP_POPUP_DURATION_MS = 1000;
 const TWENTY_FOUR_HOURS_MS = 24 * 60 * 60 * 1000;
-const MAX_TASK_NAME_LENGTH = 40;
 
 // ── Task Card — style Waze incident iOS ─────────────────────
 function TaskCard({ task, householdId, onCompleted }) {
@@ -191,120 +185,6 @@ function OneShotCard({ task, onClaimed, onXPGained }) {
   );
 }
 
-// ── Add one-shot modal ────────────────────────────────────────
-function AddOneShotModal({ householdId, onClose, onAdded }) {
-  const { user } = useAuth();
-  const [name, setName] = useState("");
-  const [emoji, setEmoji] = useState("⭐");
-  const [xp, setXp] = useState(20);
-  const [loading, setLoading] = useState(false);
-
-  async function handleSubmit(e) {
-    e.preventDefault();
-    if (!name.trim()) return;
-    setLoading(true);
-    try {
-      const { error } = await supabase.from("oneshot_tasks").insert({
-        household_id: householdId,
-        created_by: user.id,
-        name: name.trim(),
-        emoji,
-        xp_value: xp,
-      });
-      if (error) throw error;
-      onAdded();
-      onClose();
-    } catch (err) {
-      console.error("Failed to create one-shot task:", err);
-    } finally {
-    }
-  }
-
-  return (
-    <motion.div
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      exit={{ opacity: 0 }}
-      className="fixed inset-0 z-50 flex items-end justify-center"
-      style={{ background: "rgba(0,0,0,0.7)" }}
-      onClick={onClose}
-    >
-      <motion.div
-        initial={{ y: "100%" }}
-        animate={{ y: 0 }}
-        exit={{ y: "100%" }}
-        transition={{ type: "spring", damping: 30, stiffness: 300 }}
-        onClick={(e) => e.stopPropagation()}
-        className="w-full max-w-lg bg-game-card border-t border-game-border rounded-t-3xl p-6 pb-10"
-      >
-        <div className="w-12 h-1 bg-game-border rounded-full mx-auto mb-6" />
-        <h2 className="font-game font-bold text-game-text text-base mb-6">
-          Nouvelle tâche ponctuelle
-        </h2>
-
-        <form onSubmit={handleSubmit} className="space-y-5">
-          {/* Emoji picker */}
-          <div>
-            <label className="block text-xs text-game-muted mb-2 font-game tracking-wider">ICÔNE</label>
-            <div className="flex gap-2 flex-wrap">
-              {ONESHOT_EMOJIS.map((e) => (
-                <button
-                  key={e} type="button"
-                  onClick={() => setEmoji(e)}
-                  className={`text-2xl p-1.5 rounded-xl transition-all ${
-                    emoji === e ? "bg-game-purple scale-110 shadow-neon-purple" : "bg-game-bg hover:bg-game-border"
-                  }`}
-                >
-                  {e}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* Name */}
-          <div>
-            <label className="block text-xs text-game-muted mb-1 font-game tracking-wider">NOM</label>
-            <input
-              type="text" value={name}
-              onChange={(e) => setName(e.target.value)}
-              required maxLength={MAX_TASK_NAME_LENGTH}
-              placeholder="Nom de la tâche"
-              className="w-full bg-game-bg border border-game-border rounded-xl px-4 py-3 text-game-text placeholder-game-muted focus:outline-none focus:border-game-cyan transition-all"
-            />
-          </div>
-
-          {/* XP buttons */}
-          <div>
-            <label className="block text-xs text-game-muted mb-2 font-game tracking-wider">XP</label>
-            <div className="flex gap-2">
-              {XP_OPTIONS.map((v) => (
-                <button
-                  key={v} type="button"
-                  onClick={() => setXp(v)}
-                  className={`flex-1 py-2 rounded-xl font-game font-bold text-sm transition-all ${
-                    xp === v
-                      ? "bg-game-gold text-game-bg shadow-neon-gold"
-                      : "bg-game-bg text-game-gold border border-game-border hover:border-game-gold"
-                  }`}
-                >
-                  {v}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <button
-            type="submit" disabled={loading || !name.trim()}
-            className="w-full py-4 bg-game-green text-game-bg font-game font-bold rounded-xl hover:shadow-neon-green transition-all disabled:opacity-50"
-          >
-            {loading ? "AJOUT..." : `${emoji} Ajouter`}
-          </button>
-        </form>
-      </motion.div>
-    </motion.div>
-  );
-}
-
 // ── Grouped task list ─────────────────────────────────────────
 function TaskGroup({ tasks, householdId, onCompleted }) {
   return (
@@ -345,7 +225,7 @@ export default function DashboardPage() {
   const [prevLevel, setPrevLevel] = useState(profile?.level ?? 1);
   const [earlyOpen, setEarlyOpen] = useState(false);
   const [oneShotTasks, setOneShotTasks] = useState([]);
-  const [showAddOneShot, setShowAddOneShot] = useState(false);
+  const [filterText, setFilterText] = useState("");
 
   const householdId = profile?.household_id;
 
@@ -467,9 +347,18 @@ export default function DashboardPage() {
     setTimeout(() => setXpFlash(null), 2000);
   }
 
+  function handleTaskCompleted(xp) {
+    handleXPGained(xp);
+    fetchTasks();
+  }
+
+  const filterLower = filterText.toLowerCase();
+  const filteredTasks = filterLower
+    ? tasks.filter((t) => t.name.toLowerCase().includes(filterLower))
+    : tasks;
   const overdueCount = tasks.filter((t) => t.urgency >= 1).length;
-  const activeTasks = tasks.filter((t) => t.urgency > 0.25);
-  const earlyTasks = tasks.filter((t) => t.urgency <= 0.25);
+  const activeTasks = filteredTasks.filter((t) => t.urgency > 0.25);
+  const earlyTasks = filteredTasks.filter((t) => t.urgency <= 0.25);
 
   return (
     <div className="flex flex-col h-full">
@@ -514,6 +403,17 @@ export default function DashboardPage() {
 
       {/* Task list */}
       <div className="flex-1 overflow-y-auto pb-24">
+        {/* Search filter */}
+        <div className="px-4 pt-3">
+          <input
+            type="text"
+            value={filterText}
+            onChange={(e) => setFilterText(e.target.value)}
+            placeholder="🔍 Filtrer les quêtes..."
+            className="w-full bg-game-bg border border-game-border rounded-xl px-4 py-2.5 text-game-text placeholder-game-muted text-sm focus:outline-none focus:border-game-cyan transition-all"
+          />
+        </div>
+
         {loadingTasks ? (
           <p className="text-center font-pixel text-game-green text-xs py-10 animate-pulse">
             CHARGEMENT DES QUÊTES...
@@ -531,7 +431,7 @@ export default function DashboardPage() {
               <TaskGroup
                 tasks={activeTasks}
                 householdId={householdId}
-                onCompleted={handleXPGained}
+                onCompleted={handleTaskCompleted}
               />
             )}
 
@@ -563,7 +463,7 @@ export default function DashboardPage() {
                       <TaskGroup
                         tasks={earlyTasks}
                         householdId={householdId}
-                        onCompleted={handleXPGained}
+                        onCompleted={handleTaskCompleted}
                       />
                     </motion.div>
                   )}
@@ -573,16 +473,10 @@ export default function DashboardPage() {
 
             {/* ── One-shot tasks ── */}
             <div>
-              <div className="flex items-center justify-between mb-3">
+              <div className="mb-3">
                 <h2 className="font-game font-semibold text-game-cyan text-xs tracking-wider uppercase">
                   Tâches ponctuelles
                 </h2>
-                <button
-                  onClick={() => setShowAddOneShot(true)}
-                  className="flex items-center gap-1 bg-game-purple text-white px-3 py-1.5 rounded-lg text-xs font-game font-bold shadow-neon-purple hover:shadow-neon-cyan transition-all"
-                >
-                  + AJOUTER
-                </button>
               </div>
 
               {oneShotTasks.length > 0 ? (
@@ -610,13 +504,9 @@ export default function DashboardPage() {
                   ))}
                 </div>
               ) : (
-                <button
-                  onClick={() => setShowAddOneShot(true)}
-                  className="w-full border-2 border-dashed border-game-border rounded-2xl py-6 text-center text-game-muted hover:border-game-purple hover:text-game-purple transition-all"
-                >
-                  <div className="text-2xl mb-1">✨</div>
-                  <p className="font-game text-xs">Ajoute une tâche ponctuelle</p>
-                </button>
+                <p className="text-game-muted text-xs text-center py-4 font-game">
+                  Aucune tâche ponctuelle · crée-en une dans Gérer
+                </p>
               )}
             </div>
           </div>
@@ -647,17 +537,6 @@ export default function DashboardPage() {
               </p>
             </motion.div>
           </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* Add one-shot modal */}
-      <AnimatePresence>
-        {showAddOneShot && (
-          <AddOneShotModal
-            householdId={householdId}
-            onClose={() => setShowAddOneShot(false)}
-            onAdded={fetchOneShotTasks}
-          />
         )}
       </AnimatePresence>
     </div>
