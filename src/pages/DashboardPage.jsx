@@ -17,14 +17,23 @@ function TaskCard({ task, currentUserId, getProfileInfo, isFlagged, onTap }) {
   const isClaimedByPartner = !!task.claimed_by && !isClaimedByMe;
   const claimer = getProfileInfo?.(task.claimed_by);
 
+  const tileBg = isClaimedByPartner
+    ? "rgba(0,212,255,0.06)"
+    : isFlagged ? "rgba(245,158,11,0.07)"
+    : `${urgencyColor}0a`;
+  const tileBorder = isClaimedByPartner
+    ? "rgba(0,212,255,0.28)"
+    : isFlagged ? "rgba(245,158,11,0.35)"
+    : `${urgencyColor}30`;
+
   return (
     <button
       onClick={onTap}
       className="relative w-full flex flex-col items-center p-3 rounded-2xl text-center transition-all active:scale-95"
       style={{
         WebkitTapHighlightColor: "transparent",
-        background: isFlagged ? "rgba(245,158,11,0.07)" : `${urgencyColor}0a`,
-        border: `1.5px solid ${isFlagged ? "rgba(245,158,11,0.35)" : `${urgencyColor}30`}`,
+        background: tileBg,
+        border: `1.5px solid ${tileBorder}`,
         boxShadow: (isOverdue || isFlagged) ? `0 0 18px ${urgencyColor}20` : "none",
         minHeight: 136,
       }}
@@ -34,7 +43,6 @@ function TaskCard({ task, currentUserId, getProfileInfo, isFlagged, onTap }) {
         <div className="flex gap-0.5 text-xs leading-none">
           {isFlagged && <span>⚡</span>}
           {isClaimedByMe && <span style={{ fontSize: "10px" }}>👤</span>}
-          {isClaimedByPartner && <span style={{ fontSize: "10px", opacity: 0.55 }}>👤</span>}
         </div>
         <span className="font-game font-bold rounded-lg px-1.5 py-0.5"
           style={{ color: "#f59e0b", background: "rgba(245,158,11,0.15)", fontSize: "9px" }}>
@@ -42,7 +50,7 @@ function TaskCard({ task, currentUserId, getProfileInfo, isFlagged, onTap }) {
         </span>
       </div>
 
-      {/* Emoji */}
+      {/* Emoji + claimer badge */}
       <div className="relative my-1">
         <motion.span
           className="text-[2rem] leading-none"
@@ -51,7 +59,10 @@ function TaskCard({ task, currentUserId, getProfileInfo, isFlagged, onTap }) {
         >
           {task.emoji}
         </motion.span>
-        {urgency >= 0.75 && (
+        {isClaimedByPartner && claimer && (
+          <div className="absolute -bottom-1 -right-2 text-sm leading-none">{claimer.avatar_emoji}</div>
+        )}
+        {!isClaimedByPartner && urgency >= 0.75 && (
           <div className="absolute -top-0.5 -right-1.5 w-2.5 h-2.5 rounded-full border-2 border-game-bg"
             style={{ background: urgencyColor, boxShadow: `0 0 6px ${urgencyColor}` }} />
         )}
@@ -65,9 +76,9 @@ function TaskCard({ task, currentUserId, getProfileInfo, isFlagged, onTap }) {
 
       {/* Sub-info */}
       <p className="mt-0.5 w-full truncate"
-        style={{ fontSize: "9px", color: isClaimedByMe ? "#a78bfa" : isClaimedByPartner && claimer ? "#94a3b8" : "#475569" }}>
+        style={{ fontSize: "9px", color: isClaimedByMe ? "#a78bfa" : isClaimedByPartner ? "#00d4ff" : "#475569" }}>
         {isClaimedByMe ? "Je m'en occupe"
-          : isClaimedByPartner && claimer ? `${claimer.avatar_emoji} s'en occupe`
+          : isClaimedByPartner && claimer ? `${claimer.username} s'en occupe`
           : task.last_completed_username ? `${task.last_completed_avatar} ${formatTimeAgo(task.last_completed_at)}`
           : <span style={{ color: urgencyColor }}>Jamais fait</span>}
       </p>
@@ -100,22 +111,27 @@ function OneShotCard({ task, currentUserId, getProfileInfo, onTap }) {
       className="w-full flex flex-col items-center p-3 rounded-2xl text-center transition-all active:scale-95"
       style={{
         WebkitTapHighlightColor: "transparent",
-        background: isClaimedByMe ? "rgba(124,58,237,0.1)" : "rgba(245,158,11,0.07)",
-        border: `1.5px solid ${isClaimedByMe ? "rgba(124,58,237,0.35)" : "rgba(245,158,11,0.22)"}`,
-        opacity: isClaimedByPartner ? 0.72 : 1,
+        background: isClaimedByMe ? "rgba(124,58,237,0.1)" : isClaimedByPartner ? "rgba(0,212,255,0.06)" : "rgba(245,158,11,0.07)",
+        border: `1.5px solid ${isClaimedByMe ? "rgba(124,58,237,0.35)" : isClaimedByPartner ? "rgba(0,212,255,0.28)" : "rgba(245,158,11,0.22)"}`,
         minHeight: 120,
       }}
     >
       <span className="font-game font-bold self-end rounded-lg px-1.5 py-0.5 mb-1"
         style={{ color: "#f59e0b", background: "rgba(245,158,11,0.15)", fontSize: "9px" }}>+{task.xp_value}</span>
-      <span className="text-[2rem] leading-none mb-1">{task.emoji}</span>
+      <div className="relative mb-1">
+        <span className="text-[2rem] leading-none">{task.emoji}</span>
+        {isClaimedByPartner && claimer && (
+          <span className="absolute -bottom-1 -right-2 text-sm leading-none">{claimer.avatar_emoji}</span>
+        )}
+      </div>
       <p className="font-game font-semibold text-game-text w-full leading-tight"
         style={{ fontSize: "11px", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>
         {task.name}
       </p>
-      <p className="mt-0.5 w-full" style={{ fontSize: "9px", color: isClaimedByMe ? "#a78bfa" : isClaimedByPartner && claimer ? "#94a3b8" : "#475569" }}>
+      <p className="mt-0.5 w-full truncate"
+        style={{ fontSize: "9px", color: isClaimedByMe ? "#a78bfa" : isClaimedByPartner ? "#00d4ff" : "#475569" }}>
         {isClaimedByMe ? "Je m'en occupe"
-          : isClaimedByPartner && claimer ? `${claimer.avatar_emoji} s'en occupe`
+          : isClaimedByPartner && claimer ? `${claimer.username} s'en occupe`
           : "En attente"}
       </p>
     </button>
