@@ -7,8 +7,6 @@ import XPGainPopup from "@/components/XPGainPopup";
 import { getUrgency, getUrgencyColor, formatTimeAgo } from "@/lib/xpUtils";
 
 const URGENCY_THRESHOLD = 0.25;
-const XP_OPTIONS = [5, 10, 20, 50, 100];
-const ONE_SHOT_EMOJIS = ["📋","📬","🏛️","🧾","💊","🔑","🛠️","🎁","📞","🗂️","🚗","✈️"];
 
 // ── Periodic Task Card (tap only) ────────────────────────────────────────────
 function TaskCard({ task, isFlagged, onTap }) {
@@ -249,86 +247,6 @@ function TaskActionModal({
   );
 }
 
-// ── Add One-shot Modal ───────────────────────────────────────────────────────
-function AddOneShotModal({ onAdd, onClose }) {
-  const [name, setName] = useState("");
-  const [emoji, setEmoji] = useState("📋");
-  const [xp, setXp] = useState(20);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState(null);
-
-  async function handleAdd() {
-    if (!name.trim()) return;
-    setLoading(true);
-    setError(null);
-    const err = await onAdd({ name: name.trim(), emoji, xp_value: xp });
-    setLoading(false);
-    if (err) setError(err);
-  }
-
-  return (
-    <div
-      className="fixed inset-0 z-50 flex items-end justify-center"
-      style={{ background: "rgba(0,0,0,0.7)" }}
-      onClick={(e) => e.target === e.currentTarget && onClose()}
-    >
-      <motion.div
-        initial={{ y: "100%" }} animate={{ y: 0 }} exit={{ y: "100%" }}
-        transition={{ type: "spring", stiffness: 400, damping: 40 }}
-        className="w-full max-w-lg rounded-t-3xl p-5 space-y-4"
-        style={{ background: "#0a0a1a", border: "1px solid #1e1e4a" }}
-      >
-        <div className="flex items-center justify-between">
-          <h3 className="font-game font-bold text-game-text">Nouvelle quête</h3>
-          <button onClick={onClose} className="text-game-muted text-xl leading-none">✕</button>
-        </div>
-
-        <div className="flex flex-wrap gap-2">
-          {ONE_SHOT_EMOJIS.map((e) => (
-            <button key={e} onClick={() => setEmoji(e)}
-              className="text-xl p-2 rounded-xl transition-all"
-              style={{ background: emoji === e ? "rgba(245,158,11,0.25)" : "rgba(255,255,255,0.04)" }}>
-              {e}
-            </button>
-          ))}
-        </div>
-
-        <input
-          value={name} onChange={(e) => setName(e.target.value)}
-          onKeyDown={(e) => e.key === "Enter" && handleAdd()}
-          placeholder="Nom de la quête..." maxLength={50}
-          className="w-full bg-game-bg border border-game-border rounded-xl px-3 py-2.5 text-sm text-game-text placeholder-game-muted focus:outline-none focus:border-game-cyan"
-        />
-
-        <div>
-          <p className="font-game text-game-muted text-xs mb-2">XP · difficulté / durée</p>
-          <div className="flex gap-2">
-            {XP_OPTIONS.map((v) => (
-              <button key={v} onClick={() => setXp(v)}
-                className="flex-1 font-game font-bold text-xs py-2 rounded-xl transition-all"
-                style={{
-                  background: xp === v ? "rgba(245,158,11,0.25)" : "rgba(255,255,255,0.04)",
-                  color: xp === v ? "#f59e0b" : "#64748b",
-                  border: xp === v ? "1px solid rgba(245,158,11,0.4)" : "1px solid transparent",
-                }}>
-                {v}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {error && <p className="text-xs font-game" style={{ color: "#ef4444" }}>⚠️ {error}</p>}
-
-        <button onClick={handleAdd} disabled={!name.trim() || loading}
-          className="w-full font-game font-bold text-sm py-3 rounded-2xl disabled:opacity-40"
-          style={{ background: "rgba(124,58,237,0.3)", color: "#a78bfa", border: "1px solid rgba(124,58,237,0.4)" }}>
-          {loading ? "Ajout..." : "Ajouter la quête"}
-        </button>
-      </motion.div>
-    </div>
-  );
-}
-
 // ── Dashboard ────────────────────────────────────────────────────────────────
 export default function DashboardPage() {
   const { user, profile, refreshProfile } = useAuth();
@@ -342,7 +260,6 @@ export default function DashboardPage() {
   const [xpFlash, setXpFlash] = useState(null);
   const [prevLevel, setPrevLevel] = useState(profile?.level ?? 1);
   const [oneShotTasks, setOneShotTasks] = useState([]);
-  const [showModal, setShowModal] = useState(false);
   const [earlyExpanded, setEarlyExpanded] = useState(false);
   const [activeUserId, setActiveUserId] = useState(null);
   const [selectedTask, setSelectedTask] = useState(null);
@@ -425,15 +342,6 @@ export default function DashboardPage() {
   }, [householdId]);
 
   useEffect(() => { fetchOneShotTasks(); }, [fetchOneShotTasks]);
-
-  async function addOneShotTask({ name, emoji, xp_value }) {
-    const { data, error } = await supabase.from("one_shot_tasks")
-      .insert({ name, emoji, xp_value, household_id: householdId })
-      .select().single();
-    if (error) return error.message;
-    if (data) { setOneShotTasks((prev) => [...prev, data]); setShowModal(false); }
-    return null;
-  }
 
   // ── Task actions ──
   async function completePeriodicTask(task) {
@@ -655,15 +563,10 @@ export default function DashboardPage() {
 
             {/* One-shot tasks */}
             <div className="px-4 pt-2 pb-3">
-              <div className="flex items-center justify-between mb-2">
+              <div className="mb-2">
                 <h2 className="font-game font-semibold text-xs tracking-wider uppercase" style={{ color: "#f59e0b" }}>
                   À FAIRE{activeOneShotTasks.length > 0 && ` (${activeOneShotTasks.length})`}
                 </h2>
-                <button onClick={() => setShowModal(true)}
-                  className="font-game font-bold text-xs px-2 py-1 rounded-lg"
-                  style={{ color: "#f59e0b", background: "rgba(245,158,11,0.12)" }}>
-                  + AJOUTER
-                </button>
               </div>
 
               {activeOneShotTasks.length === 0 && completedOneShotTasks.length === 0 ? (
@@ -693,11 +596,6 @@ export default function DashboardPage() {
           </>
         )}
       </div>
-
-      {/* Add one-shot modal */}
-      <AnimatePresence>
-        {showModal && <AddOneShotModal onAdd={addOneShotTask} onClose={() => setShowModal(false)} />}
-      </AnimatePresence>
 
       {/* Task action modal */}
       <AnimatePresence>
