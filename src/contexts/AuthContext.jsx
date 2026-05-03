@@ -7,6 +7,7 @@ export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [proxyUserId, setProxyUserId] = useState(null);
 
   async function fetchProfile(userId) {
     const { data } = await supabase
@@ -44,6 +45,7 @@ export function AuthProvider({ children }) {
   }, [user, profile]);
 
   async function signOut() {
+    setProxyUserId(null);
     await supabase.auth.signOut();
   }
 
@@ -53,7 +55,7 @@ export function AuthProvider({ children }) {
 
   return (
     <AuthContext.Provider
-      value={{ user, profile, loading, signOut, refreshProfile }}
+      value={{ user, profile, loading, signOut, refreshProfile, proxyUserId, setProxyUserId }}
     >
       {children}
     </AuthContext.Provider>

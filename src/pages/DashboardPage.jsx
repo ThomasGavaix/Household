@@ -267,7 +267,7 @@ function TaskActionModal({
 
 // ── Dashboard ────────────────────────────────────────────────────────────────
 export default function DashboardPage() {
-  const { user, profile, refreshProfile } = useAuth();
+  const { user, profile, refreshProfile, proxyUserId, setProxyUserId } = useAuth();
   const [partner, setPartner] = useState(null);
   const [inviteCode, setInviteCode] = useState(null);
   const [tasks, setTasks] = useState([]);
@@ -279,7 +279,6 @@ export default function DashboardPage() {
   const [prevLevel, setPrevLevel] = useState(profile?.level ?? 1);
   const [oneShotTasks, setOneShotTasks] = useState([]);
   const [earlyExpanded, setEarlyExpanded] = useState(false);
-  const [activeUserId, setActiveUserId] = useState(null);
   const [selectedTask, setSelectedTask] = useState(null);
   const [selectedTaskType, setSelectedTaskType] = useState(null);
 
@@ -292,8 +291,8 @@ export default function DashboardPage() {
     return null;
   }
 
-  const effectiveUserId = activeUserId ?? user?.id;
-  const isProxyMode = activeUserId !== null && activeUserId !== user?.id;
+  const effectiveUserId = proxyUserId ?? user?.id;
+  const isProxyMode = proxyUserId !== null && proxyUserId !== user?.id;
   const proxyProfile = isProxyMode ? getProfileInfo(effectiveUserId) : null;
 
   // ── Fetch periodic tasks ──
@@ -503,7 +502,7 @@ export default function DashboardPage() {
           partnerProfile={partner}
           inviteCode={inviteCode}
           activeUserId={effectiveUserId}
-          onSwitchActive={(id) => setActiveUserId(id === user?.id ? null : id)}
+          onSwitchActive={(id) => setProxyUserId(id === user?.id ? null : id)}
         />
       </div>
 
@@ -519,7 +518,7 @@ export default function DashboardPage() {
               <p className="font-game text-xs" style={{ color: "#00d4ff" }}>
                 🔄 Actions pour {proxyProfile.avatar_emoji} {proxyProfile.username}
               </p>
-              <button onClick={() => setActiveUserId(null)} className="font-game text-xs" style={{ color: "#64748b" }}>
+              <button onClick={() => setProxyUserId(null)} className="font-game text-xs" style={{ color: "#64748b" }}>
                 Retour à moi
               </button>
             </div>
