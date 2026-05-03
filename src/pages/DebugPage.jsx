@@ -73,7 +73,7 @@ export default function DebugPage() {
 
     // Sign up as test user
     const ts = Date.now();
-    const testEmail = `debug-${ts}@household.test`;
+    const testEmail = `debug-${ts}@household-test.com`;
     const testPass = `Test${ts}!`;
     const { data: signUpData, error: signUpErr } = await supabase.auth.signUp({
       email: testEmail,
