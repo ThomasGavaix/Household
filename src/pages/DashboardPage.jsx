@@ -9,10 +9,13 @@ import { getUrgency, getUrgencyColor, formatTimeAgo } from "@/lib/xpUtils";
 const URGENCY_THRESHOLD = 0.25;
 
 // ── Periodic Task Card (tap only) ────────────────────────────────────────────
-function TaskCard({ task, isFlagged, onTap }) {
+function TaskCard({ task, currentUserId, getProfileInfo, isFlagged, onTap }) {
   const urgency = getUrgency(task.last_completed_at, task.frequency_hours);
   const urgencyColor = isFlagged ? "#f59e0b" : getUrgencyColor(urgency);
   const isOverdue = urgency >= 1;
+  const isClaimedByMe = task.claimed_by === currentUserId;
+  const isClaimedByPartner = !!task.claimed_by && !isClaimedByMe;
+  const claimer = getProfileInfo?.(task.claimed_by);
 
   return (
     <button
@@ -48,6 +51,10 @@ function TaskCard({ task, isFlagged, onTap }) {
         <p className="text-game-text font-semibold text-sm leading-tight truncate">{task.name}</p>
         <p className="text-game-muted text-xs mt-0.5 truncate">
           {isFlagged && <span style={{ color: "#f59e0b" }}>⚡ urgent · </span>}
+          {isClaimedByMe && <span style={{ color: "#a78bfa" }}>Je m'en occupe · </span>}
+          {isClaimedByPartner && claimer && (
+            <span style={{ color: "#94a3b8" }}>{claimer.avatar_emoji} {claimer.username} s'en occupe · </span>
+          )}
           {task.last_completed_username
             ? `${task.last_completed_avatar} ${task.last_completed_username} · ${formatTimeAgo(task.last_completed_at)}`
             : <span style={{ color: urgencyColor }}>Jamais fait</span>}
@@ -112,7 +119,7 @@ function OneShotCard({ task, currentUserId, getProfileInfo, onTap }) {
 function TaskActionModal({
   task, taskType, isFlagged, currentUserId, getProfileInfo,
   onCompleteperiodic, onCompleteOneshot, onToggleFlag,
-  onClaim, onUnclaim, onDelete, onClose,
+  onClaim, onUnclaim, onClaimPeriodic, onUnclaimPeriodic, onClose,
 }) {
   const [completing, setCompleting] = useState(false);
   const [showXP, setShowXP] = useState(false);
@@ -142,17 +149,17 @@ function TaskActionModal({
         initial={{ y: "100%" }} animate={{ y: 0 }} exit={{ y: "100%" }}
         transition={{ type: "spring", stiffness: 420, damping: 38 }}
         onClick={(e) => e.stopPropagation()}
-        className="w-full max-w-lg rounded-t-3xl overflow-hidden"
-        style={{ background: "#0d0d24", border: "1px solid #1e1e4a" }}
+        className="w-full max-w-lg rounded-t-3xl flex flex-col"
+        style={{ background: "#0d0d24", border: "1px solid #1e1e4a", maxHeight: "85vh" }}
       >
         {/* Task info */}
-        <div className="flex items-center gap-3 px-5 py-4 border-b" style={{ borderColor: "#1e1e4a" }}>
+        <div className="flex items-center gap-3 px-5 py-4 border-b shrink-0" style={{ borderColor: "#1e1e4a" }}>
           <span className="text-3xl leading-none">{task.emoji}</span>
           <div className="flex-1 min-w-0 relative">
             <p className="font-game font-bold text-game-text truncate">{task.name}</p>
             <p className="text-game-muted text-xs mt-0.5">
               {taskType === "periodic"
-                ? formatTimeAgo(task.last_completed_at)
+                ? (isClaimedByMe ? "Je m'en occupe" : isClaimedByPartner && claimer ? `${claimer.avatar_emoji} ${claimer.username} s'en occupe` : formatTimeAgo(task.last_completed_at))
                 : isClaimedByPartner && claimer
                   ? `${claimer.avatar_emoji} ${claimer.username} s'en occupe`
                   : isClaimedByMe
@@ -167,8 +174,8 @@ function TaskActionModal({
           </span>
         </div>
 
-        {/* Actions */}
-        <div className="p-3 space-y-2 pb-8">
+        {/* Actions — scrollable */}
+        <div className="overflow-y-auto p-3 space-y-2" style={{ paddingBottom: "max(2rem, env(safe-area-inset-bottom))" }}>
 
           {/* Marquer comme fait */}
           {canComplete && (
@@ -180,6 +187,29 @@ function TaskActionModal({
               <span className="text-2xl">✅</span>
               {completing ? "En cours..." : "Marquer comme fait"}
             </button>
+          )}
+
+          {/* Je m'en occupe (périodique) */}
+          {taskType === "periodic" && (
+            !task.claimed_by ? (
+              <button
+                onClick={() => { onClaimPeriodic(task.id); onClose(); }}
+                className="w-full flex items-center gap-4 px-5 py-4 rounded-2xl font-game font-bold text-base transition-all active:scale-95"
+                style={{ background: "rgba(124,58,237,0.12)", color: "#a78bfa", border: "1px solid rgba(124,58,237,0.3)" }}
+              >
+                <span className="text-2xl">👤</span>
+                Je m'en occupe
+              </button>
+            ) : isClaimedByMe ? (
+              <button
+                onClick={() => { onUnclaimPeriodic(task.id); onClose(); }}
+                className="w-full flex items-center gap-4 px-5 py-4 rounded-2xl font-game font-bold text-base transition-all active:scale-95"
+                style={{ background: "rgba(100,116,139,0.1)", color: "#94a3b8", border: "1px solid rgba(100,116,139,0.2)" }}
+              >
+                <span className="text-2xl">✕</span>
+                Annuler la prise en charge
+              </button>
+            ) : null
           )}
 
           {/* Signaler urgent (périodique) */}
@@ -209,7 +239,7 @@ function TaskActionModal({
                 <span className="text-2xl">👤</span>
                 Je m'en occupe
               </button>
-            ) : (
+            ) : isClaimedByMe ? (
               <button
                 onClick={() => { onUnclaim(task.id); onClose(); }}
                 className="w-full flex items-center gap-4 px-5 py-4 rounded-2xl font-game font-bold text-base transition-all active:scale-95"
@@ -218,19 +248,7 @@ function TaskActionModal({
                 <span className="text-2xl">✕</span>
                 Annuler la prise en charge
               </button>
-            )
-          )}
-
-          {/* Supprimer (one-shot, non claimé) */}
-          {taskType === "oneshot" && !task.claimed_by && !task.completed_at && (
-            <button
-              onClick={() => { onDelete(task.id); onClose(); }}
-              className="w-full flex items-center gap-4 px-5 py-4 rounded-2xl font-game text-base transition-all active:scale-95"
-              style={{ background: "rgba(239,68,68,0.07)", color: "#ef4444", border: "1px solid rgba(239,68,68,0.18)" }}
-            >
-              <span className="text-2xl">🗑️</span>
-              Supprimer
-            </button>
+            ) : null
           )}
 
           {/* Annuler */}
@@ -281,9 +299,10 @@ export default function DashboardPage() {
   // ── Fetch periodic tasks ──
   const fetchTasks = useCallback(async () => {
     if (!householdId) return;
-    const [{ data: taskTypes, error: taskTypesError }, { data: completions }] = await Promise.all([
+    const [{ data: taskTypes, error: taskTypesError }, { data: completions }, { data: claims }] = await Promise.all([
       supabase.from("task_types").select("*").order("sort_order"),
       supabase.from("task_completions_latest").select("*").eq("household_id", householdId),
+      supabase.from("periodic_task_claims").select("*").eq("household_id", householdId),
     ]);
     if (taskTypesError) {
       setTasksError(taskTypesError.message);
@@ -291,19 +310,29 @@ export default function DashboardPage() {
       return;
     }
     setTasksError(null);
-    const map = {};
-    (completions ?? []).forEach((c) => { map[c.task_type_id] = c; });
+    const completionMap = {};
+    (completions ?? []).forEach((c) => { completionMap[c.task_type_id] = c; });
+    const claimMap = {};
+    (claims ?? []).forEach((c) => { claimMap[c.task_type_id] = c; });
     const enriched = (taskTypes ?? []).map((t) => {
-      const c = map[t.id];
+      const c = completionMap[t.id];
+      const cl = claimMap[t.id];
       return {
         ...t,
         last_completed_at: c?.completed_at ?? null,
         last_completed_username: c?.username ?? null,
         last_completed_avatar: c?.avatar_emoji ?? null,
         urgency: getUrgency(c?.completed_at ?? null, t.frequency_hours),
+        claimed_by: cl?.claimed_by ?? null,
+        claimed_at: cl?.claimed_at ?? null,
       };
     });
-    enriched.sort((a, b) => b.urgency - a.urgency);
+    const maxXP = Math.max(...enriched.map((t) => t.xp_value), 1);
+    enriched.sort((a, b) => {
+      const scoreA = a.urgency + (a.xp_value / maxXP) * 0.15;
+      const scoreB = b.urgency + (b.xp_value / maxXP) * 0.15;
+      return scoreB - scoreA;
+    });
     setTasks(enriched);
     setLoadingTasks(false);
   }, [householdId]);
@@ -352,10 +381,23 @@ export default function DashboardPage() {
       xp_earned: task.xp_value,
     });
     if (error) { console.error(error); return; }
-    if (flags.has(task.id)) {
-      await supabase.from("task_flags").delete().eq("task_type_id", task.id).eq("household_id", householdId);
-    }
+    const ops = [];
+    if (flags.has(task.id)) ops.push(supabase.from("task_flags").delete().eq("task_type_id", task.id).eq("household_id", householdId));
+    if (task.claimed_by) ops.push(supabase.from("periodic_task_claims").delete().eq("task_type_id", task.id).eq("household_id", householdId));
+    await Promise.all(ops);
     handleXPGained(task.xp_value);
+  }
+
+  async function claimPeriodicTask(taskTypeId) {
+    const now = new Date().toISOString();
+    await supabase.from("periodic_task_claims")
+      .upsert({ task_type_id: taskTypeId, household_id: householdId, claimed_by: user.id, claimed_at: now });
+    setTasks((prev) => prev.map((t) => t.id === taskTypeId ? { ...t, claimed_by: user.id, claimed_at: now } : t));
+  }
+
+  async function unclaimPeriodicTask(taskTypeId) {
+    await supabase.from("periodic_task_claims").delete().eq("task_type_id", taskTypeId).eq("household_id", householdId);
+    setTasks((prev) => prev.map((t) => t.id === taskTypeId ? { ...t, claimed_by: null, claimed_at: null } : t));
   }
 
   async function completeOneShotTask(task) {
@@ -401,6 +443,7 @@ export default function DashboardPage() {
       .on("postgres_changes", { event: "INSERT", schema: "public", table: "task_completions", filter: `household_id=eq.${householdId}` }, () => fetchTasks())
       .on("postgres_changes", { event: "*", schema: "public", table: "task_flags", filter: `household_id=eq.${householdId}` }, () => fetchFlags())
       .on("postgres_changes", { event: "*", schema: "public", table: "one_shot_tasks", filter: `household_id=eq.${householdId}` }, () => fetchOneShotTasks())
+      .on("postgres_changes", { event: "*", schema: "public", table: "periodic_task_claims", filter: `household_id=eq.${householdId}` }, () => fetchTasks())
       .on("postgres_changes", { event: "UPDATE", schema: "public", table: "profiles", filter: `household_id=eq.${householdId}` }, (payload) => {
         if (payload.new.id !== user.id) {
           setPartner(payload.new);
@@ -517,6 +560,8 @@ export default function DashboardPage() {
                         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: i * 0.03 }}>
                           <TaskCard
                             task={task}
+                            currentUserId={user.id}
+                            getProfileInfo={getProfileInfo}
                             isFlagged={flags.has(task.id)}
                             onTap={() => { setSelectedTask(task); setSelectedTaskType("periodic"); }}
                           />
@@ -607,11 +652,13 @@ export default function DashboardPage() {
             currentUserId={user.id}
             getProfileInfo={getProfileInfo}
             onCompleteperiodic={completePeriodicTask}
+            onClaimPeriodic={claimPeriodicTask}
+            onUnclaimPeriodic={unclaimPeriodicTask}
             onCompleteOneshot={completeOneShotTask}
             onToggleFlag={toggleFlag}
             onClaim={claimOneShotTask}
             onUnclaim={unclaimOneShotTask}
-            onDelete={deleteOneShotTask}
+
             onClose={() => setSelectedTask(null)}
           />
         )}
