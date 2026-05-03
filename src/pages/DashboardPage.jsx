@@ -14,7 +14,7 @@ const XP_OPTIONS = [5, 10, 20, 50, 100];
 const ONE_SHOT_EMOJIS = ["📋","📬","🏛️","🧾","💊","🔑","🛠️","🎁","📞","🗂️","🚗","✈️"];
 
 // ── Periodic Task Card ───────────────────────────────────────────────────────
-function TaskCard({ task, householdId, isFlagged, onCompleted, onFlag }) {
+function TaskCard({ task, householdId, isFlagged, onCompleted, onFlag, completingAsId }) {
   const { user } = useAuth();
   const [completing, setCompleting] = useState(false);
   const [showXP, setShowXP] = useState(false);
@@ -53,7 +53,7 @@ function TaskCard({ task, householdId, isFlagged, onCompleted, onFlag }) {
       const { error } = await supabase.from("task_completions").insert({
         task_type_id: task.id,
         household_id: householdId,
-        completed_by: user.id,
+        completed_by: completingAsId ?? user.id,
         xp_earned: task.xp_value,
       });
       if (error) throw error;
@@ -309,7 +309,7 @@ function AddOneShotModal({ onAdd, onClose }) {
         <input
           value={name} onChange={(e) => setName(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && handleAdd()}
-          placeholder="Nom de la quête..." maxLength={50} autoFocus
+          placeholder="Nom de la quête..." maxLength={50}
           className="w-full bg-game-bg border border-game-border rounded-xl px-3 py-2.5 text-sm text-game-text placeholder-game-muted focus:outline-none focus:border-game-cyan"
         />
 
@@ -357,6 +357,7 @@ export default function DashboardPage() {
   const [oneShotTasks, setOneShotTasks] = useState([]);
   const [showModal, setShowModal] = useState(false);
   const [earlyExpanded, setEarlyExpanded] = useState(false);
+  const [activeUserId, setActiveUserId] = useState(null);
 
   const householdId = profile?.household_id;
 
@@ -366,6 +367,10 @@ export default function DashboardPage() {
     if (userId === partner?.id) return partner;
     return null;
   }
+
+  const effectiveUserId = activeUserId ?? user?.id;
+  const isProxyMode = activeUserId !== null && activeUserId !== user?.id;
+  const proxyProfile = isProxyMode ? getProfileInfo(effectiveUserId) : null;
 
   // ── Fetch periodic tasks ──
   const fetchTasks = useCallback(async () => {
@@ -462,9 +467,9 @@ export default function DashboardPage() {
   async function completeOneShotTask(task) {
     const now = new Date().toISOString();
     await supabase.from("one_shot_tasks")
-      .update({ completed_at: now, completed_by: user.id, claimed_by: null, claimed_at: null }).eq("id", task.id);
+      .update({ completed_at: now, completed_by: effectiveUserId, claimed_by: null, claimed_at: null }).eq("id", task.id);
     setOneShotTasks((prev) => prev.map((t) =>
-      t.id === task.id ? { ...t, completed_at: now, completed_by: user.id, claimed_by: null, claimed_at: null } : t
+      t.id === task.id ? { ...t, completed_at: now, completed_by: effectiveUserId, claimed_by: null, claimed_at: null } : t
     ));
     handleXPGained(task.xp_value);
     refreshProfile();
@@ -545,8 +550,39 @@ export default function DashboardPage() {
 
       {/* Player HUD */}
       <div className="shrink-0">
-        <PlayerHUD currentProfile={profile} partnerProfile={partner} inviteCode={inviteCode} />
+        <PlayerHUD
+          currentProfile={profile}
+          partnerProfile={partner}
+          inviteCode={inviteCode}
+          activeUserId={effectiveUserId}
+          onSwitchActive={(id) => setActiveUserId(id === user?.id ? null : id)}
+        />
       </div>
+
+      {/* Proxy mode banner */}
+      <AnimatePresence>
+        {isProxyMode && proxyProfile && (
+          <motion.div
+            initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }}
+            exit={{ opacity: 0, height: 0 }}
+            className="mx-4 overflow-hidden shrink-0"
+          >
+            <div className="flex items-center justify-between px-3 py-1.5 rounded-xl mb-1"
+              style={{ background: "rgba(0,212,255,0.08)", border: "1px solid rgba(0,212,255,0.25)" }}>
+              <p className="font-game text-xs" style={{ color: "#00d4ff" }}>
+                🔄 Actions pour {proxyProfile.avatar_emoji} {proxyProfile.username}
+              </p>
+              <button
+                onClick={() => setActiveUserId(null)}
+                className="font-game text-xs" style={{ color: "#64748b" }}
+              >
+                Retour à moi
+              </button>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       <div className="mx-4 h-px bg-game-border shrink-0" />
 
       {/* Scroll area */}
@@ -582,6 +618,7 @@ export default function DashboardPage() {
                             task={task} householdId={householdId}
                             isFlagged={flags.has(task.id)}
                             onCompleted={handleXPGained} onFlag={toggleFlag}
+                            completingAsId={effectiveUserId}
                           />
                         </motion.div>
                         {i < activeTasks.length - 1 && <div className="ml-20 h-px" style={{ background: "#1e1e4a" }} />}

@@ -37,18 +37,24 @@ function InviteSlot({ inviteCode }) {
   );
 }
 
-function PlayerCard({ profile, isCurrentUser }) {
+function PlayerCard({ profile, isCurrentUser, isActive, onSelect }) {
   if (!profile) return null;
 
   const progress = getXPProgress(profile.total_xp, profile.level);
   const toNext = getXPToNextLevel(profile.total_xp, profile.level);
   const title = getLevelTitle(profile.level);
-  const color = isCurrentUser ? "#7c3aed" : "#00d4ff";
+  const baseColor = isCurrentUser ? "#7c3aed" : "#00d4ff";
+  const color = isActive ? "#00ff88" : baseColor;
 
   return (
-    <div
-      className="flex-1 bg-game-card border rounded-xl p-3 transition-all"
-      style={{ borderColor: `${color}66` }}
+    <button
+      onClick={onSelect}
+      className="flex-1 bg-game-card border rounded-xl p-3 transition-all text-left active:scale-95"
+      style={{
+        borderColor: isActive ? "rgba(0,255,136,0.5)" : `${baseColor}44`,
+        boxShadow: isActive ? "0 0 14px rgba(0,255,136,0.2)" : "none",
+        opacity: isActive ? 1 : 0.65,
+      }}
     >
       <div className="flex items-center gap-2 mb-2">
         <span className="text-2xl leading-none">{profile.avatar_emoji}</span>
@@ -56,8 +62,8 @@ function PlayerCard({ profile, isCurrentUser }) {
           <p className="font-game font-bold text-xs truncate" style={{ color }}>
             {profile.username}
           </p>
-          <p className="text-game-muted truncate" style={{ fontSize: "9px" }}>
-            {title}
+          <p className="truncate" style={{ fontSize: "9px", color: isActive ? "rgba(0,255,136,0.7)" : "#64748b" }}>
+            {isActive ? "● actif" : title}
           </p>
         </div>
         <div className="text-xs font-pixel font-bold shrink-0" style={{ color }}>
@@ -75,24 +81,32 @@ function PlayerCard({ profile, isCurrentUser }) {
         />
       </div>
       <div className="flex justify-between mt-1">
-        <span className="text-game-muted" style={{ fontSize: "8px" }}>
-          {profile.total_xp} XP
-        </span>
-        <span className="text-game-muted" style={{ fontSize: "8px" }}>
-          +{toNext} → Lv.{profile.level + 1}
-        </span>
+        <span className="text-game-muted" style={{ fontSize: "8px" }}>{profile.total_xp} XP</span>
+        <span className="text-game-muted" style={{ fontSize: "8px" }}>+{toNext} → Lv.{profile.level + 1}</span>
       </div>
-    </div>
+    </button>
   );
 }
 
-export default function PlayerHUD({ currentProfile, partnerProfile, inviteCode }) {
+export default function PlayerHUD({ currentProfile, partnerProfile, inviteCode, activeUserId, onSwitchActive }) {
   return (
     <div className="flex gap-2 px-4 pt-3 pb-2">
-      <PlayerCard profile={currentProfile} isCurrentUser />
-      {partnerProfile
-        ? <PlayerCard profile={partnerProfile} isCurrentUser={false} />
-        : <InviteSlot inviteCode={inviteCode} />}
+      <PlayerCard
+        profile={currentProfile}
+        isCurrentUser
+        isActive={activeUserId === currentProfile?.id}
+        onSelect={() => onSwitchActive?.(currentProfile?.id)}
+      />
+      {partnerProfile ? (
+        <PlayerCard
+          profile={partnerProfile}
+          isCurrentUser={false}
+          isActive={activeUserId === partnerProfile?.id}
+          onSelect={() => onSwitchActive?.(partnerProfile?.id)}
+        />
+      ) : (
+        <InviteSlot inviteCode={inviteCode} />
+      )}
     </div>
   );
 }

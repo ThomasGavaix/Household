@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/contexts/AuthContext";
+import { useNavigate } from "react-router-dom";
 
 const EMOJI_OPTIONS = [
   "🍽️","🧼","👕","🧺","🌀","🧹","🗑️","🛒","🚽","🛁","🍳","🌿",
@@ -199,7 +200,7 @@ function AddOneShotModal({ householdId, onClose, onAdded }) {
         <input
           value={name} onChange={(e) => setName(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && handleSubmit()}
-          placeholder="Nom de la quête..." maxLength={50} autoFocus
+          placeholder="Nom de la quête..." maxLength={50}
           className="w-full bg-game-bg border border-game-border rounded-xl px-3 py-2.5 text-sm text-game-text placeholder-game-muted focus:outline-none focus:border-game-cyan"
         />
 
@@ -234,12 +235,16 @@ function AddOneShotModal({ householdId, onClose, onAdded }) {
 
 // ── Main ─────────────────────────────────────────────────────────────────────
 export default function ManagePage() {
-  const { profile } = useAuth();
+  const { user, profile, signOut, refreshProfile } = useAuth();
   const [tasks, setTasks] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showAddPeriodic, setShowAddPeriodic] = useState(false);
   const [showAddOneShot, setShowAddOneShot] = useState(false);
   const [oneShotTasks, setOneShotTasks] = useState([]);
+  const [joinCode, setJoinCode] = useState("");
+  const [joinError, setJoinError] = useState(null);
+  const [joinLoading, setJoinLoading] = useState(false);
+  const [showJoin, setShowJoin] = useState(false);
 
   const householdId = profile?.household_id;
 
@@ -271,6 +276,23 @@ export default function ManagePage() {
   async function deleteOneShotTask(id) {
     await supabase.from("one_shot_tasks").delete().eq("id", id);
     setOneShotTasks((prev) => prev.filter((t) => t.id !== id));
+  }
+
+  async function leaveHousehold() {
+    await supabase.from("profiles").update({ household_id: null }).eq("id", user.id);
+    await refreshProfile();
+  }
+
+  async function joinHousehold() {
+    if (!joinCode.trim()) return;
+    setJoinError(null);
+    setJoinLoading(true);
+    const { data: household } = await supabase
+      .from("households").select("id").eq("invite_code", joinCode.trim().toUpperCase()).single();
+    if (!household) { setJoinError("Code invalide ou introuvable."); setJoinLoading(false); return; }
+    await supabase.from("profiles").update({ household_id: household.id }).eq("id", user.id);
+    await refreshProfile();
+    setJoinLoading(false);
   }
 
   const globalTasks = tasks.filter((t) => !t.household_id);
@@ -391,6 +413,67 @@ export default function ManagePage() {
             </div>
           )}
         </section>
+        {/* ── Compte ── */}
+        <section>
+          <h2 className="font-game font-semibold text-game-muted text-xs tracking-wider uppercase mb-3">Compte</h2>
+          <div className="space-y-2">
+
+            {/* Rejoindre un autre foyer */}
+            <button
+              onClick={() => { setShowJoin((v) => !v); setJoinError(null); }}
+              className="w-full flex items-center justify-between px-4 py-3 rounded-2xl font-game text-sm text-game-text"
+              style={{ background: "#12122a", border: "1px solid #1e1e4a" }}
+            >
+              <span>🏠 Rejoindre un autre foyer</span>
+              <span className="text-game-muted text-xs">{showJoin ? "▲" : "▼"}</span>
+            </button>
+            <AnimatePresence>
+              {showJoin && (
+                <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }}
+                  exit={{ opacity: 0, height: 0 }} className="overflow-hidden">
+                  <div className="px-4 pb-3 pt-1 space-y-2" style={{ background: "#12122a", borderRadius: "0 0 16px 16px", border: "1px solid #1e1e4a", borderTop: "none", marginTop: -4 }}>
+                    <p className="text-game-muted text-xs">Entre le code d'invitation du nouveau foyer. Tu quitteras automatiquement le foyer actuel.</p>
+                    <div className="flex gap-2">
+                      <input
+                        value={joinCode}
+                        onChange={(e) => setJoinCode(e.target.value.toUpperCase())}
+                        onKeyDown={(e) => e.key === "Enter" && joinHousehold()}
+                        placeholder="CODE FOYER"
+                        maxLength={8}
+                        className="flex-1 bg-game-bg border border-game-border rounded-xl px-3 py-2 text-sm text-game-text font-mono placeholder-game-muted focus:outline-none focus:border-game-cyan tracking-widest uppercase"
+                      />
+                      <button onClick={joinHousehold} disabled={!joinCode.trim() || joinLoading}
+                        className="font-game font-bold text-xs px-3 py-2 rounded-xl disabled:opacity-40"
+                        style={{ background: "rgba(0,212,255,0.15)", color: "#00d4ff" }}>
+                        {joinLoading ? "..." : "Rejoindre"}
+                      </button>
+                    </div>
+                    {joinError && <p className="text-xs font-game" style={{ color: "#ef4444" }}>⚠️ {joinError}</p>}
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+
+            {/* Quitter le foyer */}
+            <button
+              onClick={leaveHousehold}
+              className="w-full flex items-center gap-3 px-4 py-3 rounded-2xl font-game text-sm"
+              style={{ background: "#12122a", border: "1px solid rgba(239,68,68,0.2)", color: "#ef4444" }}
+            >
+              🚪 Quitter ce foyer
+            </button>
+
+            {/* Se déconnecter */}
+            <button
+              onClick={signOut}
+              className="w-full flex items-center gap-3 px-4 py-3 rounded-2xl font-game text-sm text-game-muted"
+              style={{ background: "#12122a", border: "1px solid #1e1e4a" }}
+            >
+              ↩ Se déconnecter
+            </button>
+          </div>
+        </section>
+
       </div>
 
       <div className="shrink-0 py-4 text-center">
