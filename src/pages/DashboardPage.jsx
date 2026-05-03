@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/contexts/AuthContext";
@@ -6,179 +6,70 @@ import PlayerHUD from "@/components/PlayerHUD";
 import XPGainPopup from "@/components/XPGainPopup";
 import { getUrgency, getUrgencyColor, formatTimeAgo } from "@/lib/xpUtils";
 
-const HOLD_DURATION = 800;
-const RADIUS = 24;
-const CIRC = 2 * Math.PI * RADIUS;
 const URGENCY_THRESHOLD = 0.25;
 const XP_OPTIONS = [5, 10, 20, 50, 100];
 const ONE_SHOT_EMOJIS = ["📋","📬","🏛️","🧾","💊","🔑","🛠️","🎁","📞","🗂️","🚗","✈️"];
 
-// ── Periodic Task Card ───────────────────────────────────────────────────────
-function TaskCard({ task, householdId, isFlagged, onCompleted, onFlag, completingAsId }) {
-  const { user } = useAuth();
-  const [completing, setCompleting] = useState(false);
-  const [showXP, setShowXP] = useState(false);
-  const [justDone, setJustDone] = useState(false);
-  const [holdProgress, setHoldProgress] = useState(0);
-  const holdRef = useRef(null);
-
+// ── Periodic Task Card (tap only) ────────────────────────────────────────────
+function TaskCard({ task, isFlagged, onTap }) {
   const urgency = getUrgency(task.last_completed_at, task.frequency_hours);
-  const urgencyColor = justDone ? "#00ff88" : isFlagged ? "#f59e0b" : getUrgencyColor(urgency);
+  const urgencyColor = isFlagged ? "#f59e0b" : getUrgencyColor(urgency);
   const isOverdue = urgency >= 1;
 
-  function startHold(e) {
-    if (completing || justDone) return;
-    e.preventDefault();
-    const t0 = Date.now();
-    holdRef.current = setInterval(() => {
-      const p = Math.min((Date.now() - t0) / HOLD_DURATION, 1);
-      setHoldProgress(p);
-      if (p >= 1) {
-        clearInterval(holdRef.current);
-        setHoldProgress(0);
-        handleComplete();
-      }
-    }, 16);
-  }
-
-  function cancelHold() {
-    clearInterval(holdRef.current);
-    setHoldProgress(0);
-  }
-
-  async function handleComplete() {
-    if (completing || justDone) return;
-    setCompleting(true);
-    try {
-      const { error } = await supabase.from("task_completions").insert({
-        task_type_id: task.id,
-        household_id: householdId,
-        completed_by: completingAsId ?? user.id,
-        xp_earned: task.xp_value,
-      });
-      if (error) throw error;
-      if (isFlagged) {
-        await supabase.from("task_flags")
-          .delete().eq("task_type_id", task.id).eq("household_id", householdId);
-      }
-      setShowXP(true);
-      setJustDone(true);
-      setTimeout(() => setShowXP(false), 1000);
-      setTimeout(() => { setJustDone(false); onCompleted?.(task.xp_value); }, 2500);
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setCompleting(false);
-    }
-  }
-
   return (
-    <div
-      className="relative w-full flex items-center gap-3 overflow-hidden px-4 py-3"
+    <button
+      onClick={onTap}
+      className="w-full flex items-center gap-3 px-4 py-3 text-left transition-colors active:bg-white/5"
       style={{
         WebkitTapHighlightColor: "transparent",
-        background: isFlagged && !justDone ? "rgba(245,158,11,0.04)" : "transparent",
-        borderLeft: isFlagged && !justDone ? "3px solid rgba(245,158,11,0.6)" : "3px solid transparent",
+        background: isFlagged ? "rgba(245,158,11,0.04)" : "transparent",
+        borderLeft: isFlagged ? "3px solid rgba(245,158,11,0.6)" : "3px solid transparent",
       }}
     >
-      <button
-        onPointerDown={startHold}
-        onPointerUp={cancelHold}
-        onPointerLeave={cancelHold}
-        onPointerCancel={cancelHold}
-        disabled={completing}
-        className="relative shrink-0 w-14 h-14 rounded-2xl flex items-center justify-center text-2xl select-none"
+      <div
+        className="relative shrink-0 w-14 h-14 rounded-2xl flex items-center justify-center text-2xl"
         style={{
-          background: justDone ? "rgba(0,255,136,0.15)" : isFlagged ? "rgba(245,158,11,0.12)" : `${urgencyColor}18`,
+          background: isFlagged ? "rgba(245,158,11,0.12)" : `${urgencyColor}18`,
           border: `1.5px solid ${urgencyColor}44`,
-          boxShadow: (isOverdue || isFlagged) && !justDone ? `0 0 16px ${urgencyColor}33` : "none",
-          touchAction: "none",
+          boxShadow: (isOverdue || isFlagged) ? `0 0 16px ${urgencyColor}33` : "none",
         }}
       >
-        {holdProgress > 0 && (
-          <svg className="absolute inset-0 w-full h-full pointer-events-none" viewBox="0 0 56 56">
-            <circle cx="28" cy="28" r={RADIUS} fill="none"
-              stroke={urgencyColor} strokeWidth="3"
-              strokeDasharray={CIRC} strokeDashoffset={CIRC * (1 - holdProgress)}
-              strokeLinecap="round"
-              style={{ transform: "rotate(-90deg)", transformOrigin: "28px 28px" }}
-            />
-          </svg>
-        )}
         <motion.span
-          animate={isOverdue && !justDone && !isFlagged ? { scale: [1, 1.15, 1] } : {}}
+          animate={isOverdue && !isFlagged ? { scale: [1, 1.15, 1] } : {}}
           transition={{ repeat: Infinity, duration: 2 }}
         >
-          {justDone ? "✅" : task.emoji}
+          {task.emoji}
         </motion.span>
-        {urgency >= 0.75 && !justDone && (
+        {urgency >= 0.75 && (
           <div className="absolute -top-1 -right-1 w-3 h-3 rounded-full border-2 border-game-bg"
             style={{ background: urgencyColor }} />
         )}
-        <AnimatePresence>
-          {showXP && <XPGainPopup xp={task.xp_value} visible />}
-        </AnimatePresence>
-      </button>
+      </div>
 
       <div className="flex-1 min-w-0">
         <p className="text-game-text font-semibold text-sm leading-tight truncate">{task.name}</p>
         <p className="text-game-muted text-xs mt-0.5 truncate">
-          {isFlagged && !justDone && <span style={{ color: "#f59e0b" }}>⚡ urgent · </span>}
+          {isFlagged && <span style={{ color: "#f59e0b" }}>⚡ urgent · </span>}
           {task.last_completed_username
             ? `${task.last_completed_avatar} ${task.last_completed_username} · ${formatTimeAgo(task.last_completed_at)}`
             : <span style={{ color: urgencyColor }}>Jamais fait</span>}
         </p>
       </div>
 
-      <div className="flex flex-col items-end gap-1.5 shrink-0">
-        <span className="font-game font-bold px-2 py-0.5 rounded-lg"
-          style={{ color: "#f59e0b", background: "rgba(245,158,11,0.12)", fontSize: "10px" }}>
-          +{task.xp_value}
-        </span>
-        <button
-          onClick={() => onFlag?.(task.id, !isFlagged)}
-          className="text-base leading-none transition-all active:scale-110"
-          style={{ opacity: isFlagged ? 1 : 0.25 }}
-        >
-          ⚡
-        </button>
-      </div>
-    </div>
+      <span className="font-game font-bold px-2 py-0.5 rounded-lg shrink-0"
+        style={{ color: "#f59e0b", background: "rgba(245,158,11,0.12)", fontSize: "10px" }}>
+        +{task.xp_value}
+      </span>
+    </button>
   );
 }
 
-// ── One-shot Card ────────────────────────────────────────────────────────────
-function OneShotCard({ task, currentUserId, getProfileInfo, onComplete, onClaim, onUnclaim, onDelete }) {
-  const holdRef = useRef(null);
-  const [holdProgress, setHoldProgress] = useState(0);
-  const [showXP, setShowXP] = useState(false);
-
+// ── One-shot Card (tap only) ─────────────────────────────────────────────────
+function OneShotCard({ task, currentUserId, getProfileInfo, onTap }) {
   const isCompleted = !!task.completed_at;
   const isClaimedByMe = task.claimed_by === currentUserId;
   const isClaimedByPartner = !!task.claimed_by && !isClaimedByMe;
   const claimer = getProfileInfo(task.claimed_by);
-
-  function startHold(e) {
-    if (!isClaimedByMe) return;
-    e.preventDefault();
-    const t0 = Date.now();
-    holdRef.current = setInterval(() => {
-      const p = Math.min((Date.now() - t0) / HOLD_DURATION, 1);
-      setHoldProgress(p);
-      if (p >= 1) {
-        clearInterval(holdRef.current);
-        setHoldProgress(0);
-        setShowXP(true);
-        setTimeout(() => setShowXP(false), 900);
-        onComplete(task);
-      }
-    }, 16);
-  }
-
-  function cancelHold() {
-    clearInterval(holdRef.current);
-    setHoldProgress(0);
-  }
 
   if (isCompleted) {
     return (
@@ -194,70 +85,166 @@ function OneShotCard({ task, currentUserId, getProfileInfo, onComplete, onClaim,
   }
 
   return (
-    <div className="flex items-center gap-3 px-4 py-3">
-      {isClaimedByMe ? (
-        <button
-          onPointerDown={startHold}
-          onPointerUp={cancelHold}
-          onPointerLeave={cancelHold}
-          onPointerCancel={cancelHold}
-          className="relative shrink-0 w-10 h-10 rounded-xl flex items-center justify-center text-xl select-none"
-          style={{ background: "rgba(124,58,237,0.15)", border: "1.5px solid rgba(124,58,237,0.4)", touchAction: "none" }}
-        >
-          {holdProgress > 0 && (
-            <svg className="absolute inset-0 w-full h-full pointer-events-none" viewBox="0 0 40 40">
-              <circle cx="20" cy="20" r="17" fill="none" stroke="#7c3aed" strokeWidth="2.5"
-                strokeDasharray={2 * Math.PI * 17}
-                strokeDashoffset={2 * Math.PI * 17 * (1 - holdProgress)}
-                strokeLinecap="round"
-                style={{ transform: "rotate(-90deg)", transformOrigin: "20px 20px" }}
-              />
-            </svg>
-          )}
-          {task.emoji}
-          <AnimatePresence>{showXP && <XPGainPopup xp={task.xp_value} visible />}</AnimatePresence>
-        </button>
-      ) : (
-        <div className="shrink-0 w-10 h-10 rounded-xl flex items-center justify-center text-xl"
-          style={{
-            background: isClaimedByPartner ? "rgba(100,116,139,0.08)" : "rgba(245,158,11,0.08)",
-            border: `1px solid ${isClaimedByPartner ? "rgba(100,116,139,0.2)" : "rgba(245,158,11,0.2)"}`,
-            opacity: isClaimedByPartner ? 0.6 : 1,
-          }}>
-          {task.emoji}
-        </div>
-      )}
-
+    <button
+      onClick={onTap}
+      className="w-full flex items-center gap-3 px-4 py-3 text-left transition-colors active:bg-white/5"
+      style={{ WebkitTapHighlightColor: "transparent" }}
+    >
+      <div className="shrink-0 w-10 h-10 rounded-xl flex items-center justify-center text-xl"
+        style={{
+          background: isClaimedByMe ? "rgba(124,58,237,0.15)" : isClaimedByPartner ? "rgba(100,116,139,0.08)" : "rgba(245,158,11,0.08)",
+          border: `1px solid ${isClaimedByMe ? "rgba(124,58,237,0.4)" : isClaimedByPartner ? "rgba(100,116,139,0.2)" : "rgba(245,158,11,0.2)"}`,
+          opacity: isClaimedByPartner ? 0.7 : 1,
+        }}>
+        {task.emoji}
+      </div>
       <div className="flex-1 min-w-0">
         <p className="text-game-text text-sm font-semibold truncate">{task.name}</p>
-        {isClaimedByMe && (
-          <p className="text-xs" style={{ color: "#a78bfa" }}>Appui long pour terminer</p>
-        )}
+        {isClaimedByMe && <p className="text-xs" style={{ color: "#a78bfa" }}>Je m'en occupe</p>}
         {isClaimedByPartner && claimer && (
-          <p className="text-game-muted text-xs truncate">
-            {claimer.avatar_emoji} {claimer.username} s'en occupe
-          </p>
+          <p className="text-game-muted text-xs truncate">{claimer.avatar_emoji} {claimer.username} s'en occupe</p>
         )}
       </div>
-
       <span className="font-game text-xs shrink-0" style={{ color: "#f59e0b" }}>+{task.xp_value}</span>
+    </button>
+  );
+}
 
-      {!task.claimed_by ? (
-        <>
-          <button onClick={() => onClaim(task.id)}
-            className="font-game font-bold px-2 py-1 rounded-lg shrink-0 whitespace-nowrap"
-            style={{ background: "rgba(124,58,237,0.12)", color: "#a78bfa", fontSize: "10px" }}>
-            Je m'en occupe
+// ── Action Modal (iOS style) ─────────────────────────────────────────────────
+function TaskActionModal({
+  task, taskType, isFlagged, currentUserId, getProfileInfo,
+  onCompleteperiodic, onCompleteOneshot, onToggleFlag,
+  onClaim, onUnclaim, onDelete, onClose,
+}) {
+  const [completing, setCompleting] = useState(false);
+  const [showXP, setShowXP] = useState(false);
+
+  const isClaimedByMe = task.claimed_by === currentUserId;
+  const isClaimedByPartner = !!task.claimed_by && !isClaimedByMe;
+  const claimer = getProfileInfo(task.claimed_by);
+
+  async function handleComplete() {
+    if (completing) return;
+    setCompleting(true);
+    setShowXP(true);
+    if (taskType === "periodic") await onCompleteperiodic(task);
+    else await onCompleteOneshot(task);
+    setTimeout(() => { setShowXP(false); onClose(); }, 700);
+  }
+
+  const canComplete = taskType === "periodic" || !task.claimed_by || isClaimedByMe;
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-end justify-center"
+      style={{ background: "rgba(0,0,0,0.65)" }}
+      onClick={onClose}
+    >
+      <motion.div
+        initial={{ y: "100%" }} animate={{ y: 0 }} exit={{ y: "100%" }}
+        transition={{ type: "spring", stiffness: 420, damping: 38 }}
+        onClick={(e) => e.stopPropagation()}
+        className="w-full max-w-lg rounded-t-3xl overflow-hidden"
+        style={{ background: "#0d0d24", border: "1px solid #1e1e4a" }}
+      >
+        {/* Task info */}
+        <div className="flex items-center gap-3 px-5 py-4 border-b" style={{ borderColor: "#1e1e4a" }}>
+          <span className="text-3xl leading-none">{task.emoji}</span>
+          <div className="flex-1 min-w-0 relative">
+            <p className="font-game font-bold text-game-text truncate">{task.name}</p>
+            <p className="text-game-muted text-xs mt-0.5">
+              {taskType === "periodic"
+                ? formatTimeAgo(task.last_completed_at)
+                : isClaimedByPartner && claimer
+                  ? `${claimer.avatar_emoji} ${claimer.username} s'en occupe`
+                  : isClaimedByMe
+                    ? "Je m'en occupe"
+                    : "En attente"}
+            </p>
+            <AnimatePresence>{showXP && <XPGainPopup xp={task.xp_value} visible />}</AnimatePresence>
+          </div>
+          <span className="font-game font-bold text-xs px-2 py-1 rounded-lg shrink-0"
+            style={{ color: "#f59e0b", background: "rgba(245,158,11,0.12)" }}>
+            +{task.xp_value}
+          </span>
+        </div>
+
+        {/* Actions */}
+        <div className="p-3 space-y-2 pb-8">
+
+          {/* Marquer comme fait */}
+          {canComplete && (
+            <button
+              onClick={handleComplete} disabled={completing}
+              className="w-full flex items-center gap-4 px-5 py-4 rounded-2xl font-game font-bold text-base transition-all active:scale-95 disabled:opacity-50"
+              style={{ background: "rgba(0,255,136,0.1)", color: "#00ff88", border: "1px solid rgba(0,255,136,0.25)" }}
+            >
+              <span className="text-2xl">✅</span>
+              {completing ? "En cours..." : "Marquer comme fait"}
+            </button>
+          )}
+
+          {/* Signaler urgent (périodique) */}
+          {taskType === "periodic" && (
+            <button
+              onClick={() => { onToggleFlag(task.id, !isFlagged); onClose(); }}
+              className="w-full flex items-center gap-4 px-5 py-4 rounded-2xl font-game font-bold text-base transition-all active:scale-95"
+              style={{
+                background: isFlagged ? "rgba(245,158,11,0.18)" : "rgba(245,158,11,0.07)",
+                color: "#f59e0b",
+                border: `1px solid rgba(245,158,11,${isFlagged ? "0.45" : "0.18"})`,
+              }}
+            >
+              <span className="text-2xl">⚡</span>
+              {isFlagged ? "Retirer le signalement" : "Signaler urgent"}
+            </button>
+          )}
+
+          {/* Je m'en occupe (one-shot) */}
+          {taskType === "oneshot" && !task.completed_at && (
+            !task.claimed_by ? (
+              <button
+                onClick={() => { onClaim(task.id); onClose(); }}
+                className="w-full flex items-center gap-4 px-5 py-4 rounded-2xl font-game font-bold text-base transition-all active:scale-95"
+                style={{ background: "rgba(124,58,237,0.12)", color: "#a78bfa", border: "1px solid rgba(124,58,237,0.3)" }}
+              >
+                <span className="text-2xl">👤</span>
+                Je m'en occupe
+              </button>
+            ) : (
+              <button
+                onClick={() => { onUnclaim(task.id); onClose(); }}
+                className="w-full flex items-center gap-4 px-5 py-4 rounded-2xl font-game font-bold text-base transition-all active:scale-95"
+                style={{ background: "rgba(100,116,139,0.1)", color: "#94a3b8", border: "1px solid rgba(100,116,139,0.2)" }}
+              >
+                <span className="text-2xl">✕</span>
+                Annuler la prise en charge
+              </button>
+            )
+          )}
+
+          {/* Supprimer (one-shot, non claimé) */}
+          {taskType === "oneshot" && !task.claimed_by && !task.completed_at && (
+            <button
+              onClick={() => { onDelete(task.id); onClose(); }}
+              className="w-full flex items-center gap-4 px-5 py-4 rounded-2xl font-game text-base transition-all active:scale-95"
+              style={{ background: "rgba(239,68,68,0.07)", color: "#ef4444", border: "1px solid rgba(239,68,68,0.18)" }}
+            >
+              <span className="text-2xl">🗑️</span>
+              Supprimer
+            </button>
+          )}
+
+          {/* Annuler */}
+          <button
+            onClick={onClose}
+            className="w-full py-3 rounded-2xl font-game text-sm text-game-muted transition-all active:scale-95"
+            style={{ background: "rgba(255,255,255,0.04)" }}
+          >
+            Annuler
           </button>
-          <button onClick={() => onDelete(task.id)} className="shrink-0 text-game-muted text-sm ml-0.5">×</button>
-        </>
-      ) : (
-        <button onClick={() => onUnclaim(task.id)}
-          className="font-game px-2 py-1 rounded-lg shrink-0"
-          style={{ background: "rgba(100,116,139,0.12)", color: "#64748b", fontSize: "10px" }}>
-          Annuler
-        </button>
-      )}
+        </div>
+      </motion.div>
     </div>
   );
 }
@@ -358,6 +345,8 @@ export default function DashboardPage() {
   const [showModal, setShowModal] = useState(false);
   const [earlyExpanded, setEarlyExpanded] = useState(false);
   const [activeUserId, setActiveUserId] = useState(null);
+  const [selectedTask, setSelectedTask] = useState(null);
+  const [selectedTaskType, setSelectedTaskType] = useState(null);
 
   const householdId = profile?.household_id;
 
@@ -424,14 +413,12 @@ export default function DashboardPage() {
     }
   }
 
-  // ── Fetch one-shot tasks (active + completed < 24h) ──
+  // ── Fetch one-shot tasks ──
   const fetchOneShotTasks = useCallback(async () => {
     if (!householdId) return;
     const since24h = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
     const { data, error } = await supabase
-      .from("one_shot_tasks")
-      .select("*")
-      .eq("household_id", householdId)
+      .from("one_shot_tasks").select("*").eq("household_id", householdId)
       .or(`completed_at.is.null,completed_at.gte.${since24h}`)
       .order("created_at");
     if (!error) setOneShotTasks(data ?? []);
@@ -444,24 +431,23 @@ export default function DashboardPage() {
       .insert({ name, emoji, xp_value, household_id: householdId })
       .select().single();
     if (error) return error.message;
-    if (data) {
-      setOneShotTasks((prev) => [...prev, data]);
-      setShowModal(false);
-    }
+    if (data) { setOneShotTasks((prev) => [...prev, data]); setShowModal(false); }
     return null;
   }
 
-  async function claimOneShotTask(id) {
-    const now = new Date().toISOString();
-    await supabase.from("one_shot_tasks")
-      .update({ claimed_by: user.id, claimed_at: now }).eq("id", id);
-    setOneShotTasks((prev) => prev.map((t) => t.id === id ? { ...t, claimed_by: user.id, claimed_at: now } : t));
-  }
-
-  async function unclaimOneShotTask(id) {
-    await supabase.from("one_shot_tasks")
-      .update({ claimed_by: null, claimed_at: null }).eq("id", id);
-    setOneShotTasks((prev) => prev.map((t) => t.id === id ? { ...t, claimed_by: null, claimed_at: null } : t));
+  // ── Task actions ──
+  async function completePeriodicTask(task) {
+    const { error } = await supabase.from("task_completions").insert({
+      task_type_id: task.id,
+      household_id: householdId,
+      completed_by: effectiveUserId,
+      xp_earned: task.xp_value,
+    });
+    if (error) { console.error(error); return; }
+    if (flags.has(task.id)) {
+      await supabase.from("task_flags").delete().eq("task_type_id", task.id).eq("household_id", householdId);
+    }
+    handleXPGained(task.xp_value);
   }
 
   async function completeOneShotTask(task) {
@@ -473,6 +459,17 @@ export default function DashboardPage() {
     ));
     handleXPGained(task.xp_value);
     refreshProfile();
+  }
+
+  async function claimOneShotTask(id) {
+    const now = new Date().toISOString();
+    await supabase.from("one_shot_tasks").update({ claimed_by: user.id, claimed_at: now }).eq("id", id);
+    setOneShotTasks((prev) => prev.map((t) => t.id === id ? { ...t, claimed_by: user.id, claimed_at: now } : t));
+  }
+
+  async function unclaimOneShotTask(id) {
+    await supabase.from("one_shot_tasks").update({ claimed_by: null, claimed_at: null }).eq("id", id);
+    setOneShotTasks((prev) => prev.map((t) => t.id === id ? { ...t, claimed_by: null, claimed_at: null } : t));
   }
 
   async function deleteOneShotTask(id) {
@@ -564,18 +561,14 @@ export default function DashboardPage() {
         {isProxyMode && proxyProfile && (
           <motion.div
             initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }}
-            exit={{ opacity: 0, height: 0 }}
-            className="mx-4 overflow-hidden shrink-0"
+            exit={{ opacity: 0, height: 0 }} className="mx-4 overflow-hidden shrink-0"
           >
             <div className="flex items-center justify-between px-3 py-1.5 rounded-xl mb-1"
               style={{ background: "rgba(0,212,255,0.08)", border: "1px solid rgba(0,212,255,0.25)" }}>
               <p className="font-game text-xs" style={{ color: "#00d4ff" }}>
                 🔄 Actions pour {proxyProfile.avatar_emoji} {proxyProfile.username}
               </p>
-              <button
-                onClick={() => setActiveUserId(null)}
-                className="font-game text-xs" style={{ color: "#64748b" }}
-              >
+              <button onClick={() => setActiveUserId(null)} className="font-game text-xs" style={{ color: "#64748b" }}>
                 Retour à moi
               </button>
             </div>
@@ -608,17 +601,16 @@ export default function DashboardPage() {
               ) : (
                 <>
                   <p className="font-game font-semibold text-game-muted text-xs tracking-wider uppercase mb-2">
-                    QUÊTES · appui long pour valider
+                    QUÊTES
                   </p>
                   <div className="rounded-2xl overflow-hidden" style={{ background: "#12122a", border: "1px solid #1e1e4a" }}>
                     {activeTasks.map((task, i) => (
                       <div key={task.id}>
                         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: i * 0.03 }}>
                           <TaskCard
-                            task={task} householdId={householdId}
+                            task={task}
                             isFlagged={flags.has(task.id)}
-                            onCompleted={handleXPGained} onFlag={toggleFlag}
-                            completingAsId={effectiveUserId}
+                            onTap={() => { setSelectedTask(task); setSelectedTaskType("periodic"); }}
                           />
                         </motion.div>
                         {i < activeTasks.length - 1 && <div className="ml-20 h-px" style={{ background: "#1e1e4a" }} />}
@@ -647,9 +639,9 @@ export default function DashboardPage() {
                         {earlyTasks.map((task, i) => (
                           <div key={task.id}>
                             <TaskCard
-                              task={task} householdId={householdId}
+                              task={task}
                               isFlagged={flags.has(task.id)}
-                              onCompleted={handleXPGained} onFlag={toggleFlag}
+                              onTap={() => { setSelectedTask(task); setSelectedTaskType("periodic"); }}
                             />
                             {i < earlyTasks.length - 1 && <div className="ml-20 h-px" style={{ background: "#1e1e4a" }} />}
                           </div>
@@ -682,8 +674,7 @@ export default function DashboardPage() {
                     <div key={task.id}>
                       <OneShotCard
                         task={task} currentUserId={user.id} getProfileInfo={getProfileInfo}
-                        onComplete={completeOneShotTask} onClaim={claimOneShotTask}
-                        onUnclaim={unclaimOneShotTask} onDelete={deleteOneShotTask}
+                        onTap={() => { setSelectedTask(task); setSelectedTaskType("oneshot"); }}
                       />
                       {(i < activeOneShotTasks.length - 1 || completedOneShotTasks.length > 0) && (
                         <div className="ml-16 h-px" style={{ background: "#1e1e4a" }} />
@@ -692,14 +683,8 @@ export default function DashboardPage() {
                   ))}
                   {completedOneShotTasks.map((task, i) => (
                     <div key={task.id}>
-                      <OneShotCard
-                        task={task} currentUserId={user.id} getProfileInfo={getProfileInfo}
-                        onComplete={completeOneShotTask} onClaim={claimOneShotTask}
-                        onUnclaim={unclaimOneShotTask} onDelete={deleteOneShotTask}
-                      />
-                      {i < completedOneShotTasks.length - 1 && (
-                        <div className="ml-16 h-px" style={{ background: "#1e1e4a" }} />
-                      )}
+                      <OneShotCard task={task} currentUserId={user.id} getProfileInfo={getProfileInfo} onTap={null} />
+                      {i < completedOneShotTasks.length - 1 && <div className="ml-16 h-px" style={{ background: "#1e1e4a" }} />}
                     </div>
                   ))}
                 </div>
@@ -712,6 +697,26 @@ export default function DashboardPage() {
       {/* Add one-shot modal */}
       <AnimatePresence>
         {showModal && <AddOneShotModal onAdd={addOneShotTask} onClose={() => setShowModal(false)} />}
+      </AnimatePresence>
+
+      {/* Task action modal */}
+      <AnimatePresence>
+        {selectedTask && (
+          <TaskActionModal
+            task={selectedTask}
+            taskType={selectedTaskType}
+            isFlagged={flags.has(selectedTask.id)}
+            currentUserId={user.id}
+            getProfileInfo={getProfileInfo}
+            onCompleteperiodic={completePeriodicTask}
+            onCompleteOneshot={completeOneShotTask}
+            onToggleFlag={toggleFlag}
+            onClaim={claimOneShotTask}
+            onUnclaim={unclaimOneShotTask}
+            onDelete={deleteOneShotTask}
+            onClose={() => setSelectedTask(null)}
+          />
+        )}
       </AnimatePresence>
 
       {/* Level up overlay */}
