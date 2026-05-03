@@ -47,9 +47,9 @@ function PlayerCard({ profile, isCurrentUser, isActive, onSelect }) {
   const color = isActive ? "#00ff88" : baseColor;
 
   return (
-    <button
-      onClick={onSelect}
-      className="flex-1 bg-game-card border rounded-xl p-3 transition-all text-left active:scale-95"
+    <div
+      onClick={onSelect || undefined}
+      className={`flex-1 bg-game-card border rounded-xl p-3 text-left${onSelect ? " transition-all active:scale-95 cursor-pointer" : ""}`}
       style={{
         borderColor: isActive ? "rgba(0,255,136,0.5)" : `${baseColor}44`,
         boxShadow: isActive ? "0 0 14px rgba(0,255,136,0.2)" : "none",
@@ -84,7 +84,7 @@ function PlayerCard({ profile, isCurrentUser, isActive, onSelect }) {
         <span className="text-game-muted" style={{ fontSize: "8px" }}>{profile.total_xp} XP</span>
         <span className="text-game-muted" style={{ fontSize: "8px" }}>+{toNext} → Lv.{profile.level + 1}</span>
       </div>
-    </button>
+    </div>
   );
 }
 
