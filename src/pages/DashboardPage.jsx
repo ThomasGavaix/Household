@@ -580,7 +580,7 @@ export default function DashboardPage() {
                       <motion.div key={task.id} initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} transition={{ delay: i * 0.03, type: "spring", stiffness: 300 }}>
                         <TaskCard
                           task={task}
-                          currentUserId={user.id}
+                          currentUserId={effectiveUserId}
                           getProfileInfo={getProfileInfo}
                           isFlagged={flags.has(task.id)}
                           onTap={() => { setSelectedTask(task); setSelectedTaskType("periodic"); }}
@@ -611,7 +611,7 @@ export default function DashboardPage() {
                           <TaskCard
                             key={task.id}
                             task={task}
-                            currentUserId={user.id}
+                            currentUserId={effectiveUserId}
                             getProfileInfo={getProfileInfo}
                             isFlagged={flags.has(task.id)}
                             onTap={() => { setSelectedTask(task); setSelectedTaskType("periodic"); }}
@@ -639,12 +639,12 @@ export default function DashboardPage() {
                   {activeOneShotTasks.map((task) => (
                     <OneShotCard
                       key={task.id}
-                      task={task} currentUserId={user.id} getProfileInfo={getProfileInfo}
+                      task={task} currentUserId={effectiveUserId} getProfileInfo={getProfileInfo}
                       onTap={() => { setSelectedTask(task); setSelectedTaskType("oneshot"); }}
                     />
                   ))}
                   {completedOneShotTasks.map((task) => (
-                    <OneShotCard key={task.id} task={task} currentUserId={user.id} getProfileInfo={getProfileInfo} onTap={null} />
+                    <OneShotCard key={task.id} task={task} currentUserId={effectiveUserId} getProfileInfo={getProfileInfo} onTap={null} />
                   ))}
                 </div>
               )}
@@ -660,7 +660,7 @@ export default function DashboardPage() {
             task={selectedTask}
             taskType={selectedTaskType}
             isFlagged={flags.has(selectedTask.id)}
-            currentUserId={user.id}
+            currentUserId={effectiveUserId}
             getProfileInfo={getProfileInfo}
             onCompleteperiodic={completePeriodicTask}
             onClaimPeriodic={claimPeriodicTask}
