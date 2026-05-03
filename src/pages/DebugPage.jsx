@@ -71,25 +71,25 @@ export default function DebugPage() {
     // Save current session
     const { data: { session: currentSession } } = await supabase.auth.getSession();
 
-    // Sign up as test user
-    const ts = Date.now();
-    const testEmail = `debug-${ts}@household-test.com`;
-    const testPass = `Test${ts}!`;
-    const { data: signUpData, error: signUpErr } = await supabase.auth.signUp({
-      email: testEmail,
-      password: testPass,
+    // Créer un utilisateur anonyme (pas d'email, pas de rate limit)
+    const { data: anonData, error: anonErr } = await supabase.auth.signInAnonymously({
       options: { data: { username: testName.trim() || "TestBot", avatar_emoji: testEmoji } },
     });
 
-    if (signUpErr || !signUpData.user) {
-      setCreateMsg({ ok: false, text: signUpErr?.message ?? "Échec de la création." });
-      // Restore original session
+    if (anonErr || !anonData.user) {
+      setCreateMsg({ ok: false, text: anonErr?.message ?? "Échec. Active 'Anonymous sign-ins' dans Supabase Auth." });
       if (currentSession) await supabase.auth.setSession({ access_token: currentSession.access_token, refresh_token: currentSession.refresh_token });
       setCreating(false);
       return;
     }
 
-    // While logged in as test user: join the household
+    // Mettre à jour le profil (le trigger crée le profil avec les metadata)
+    await supabase.from("profiles").update({
+      username: testName.trim() || "TestBot",
+      avatar_emoji: testEmoji,
+    }).eq("id", anonData.user.id);
+
+    // Rejoindre le foyer
     await supabase.rpc("join_household", { p_invite_code: hh.invite_code });
 
     // Restore original session
@@ -224,7 +224,7 @@ export default function DebugPage() {
             {creating ? "Création en cours..." : `Créer ${testEmoji} ${testName || "..."}`}
           </button>
           <p className="text-game-muted text-xs mt-2 font-game" style={{ fontSize: "9px" }}>
-            ⚠️ Nécessite que la confirmation email soit désactivée dans Supabase Auth
+            ⚠️ Nécessite "Allow anonymous sign-ins" activé dans Supabase Auth
           </p>
         </Section>
 
