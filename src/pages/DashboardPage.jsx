@@ -9,8 +9,11 @@ import { getUrgency, getUrgencyColor, formatTimeAgo } from "@/lib/xpUtils";
 const HOLD_DURATION = 800;
 const RADIUS = 24;
 const CIRC = 2 * Math.PI * RADIUS;
+const URGENCY_THRESHOLD = 0.25;
+const XP_OPTIONS = [5, 10, 20, 50, 100];
+const ONE_SHOT_EMOJIS = ["📋","📬","🏛️","🧾","💊","🔑","🛠️","🎁","📞","🗂️","🚗","✈️"];
 
-// ── Task Card ────────────────────────────────────────────────
+// ── Periodic Task Card ───────────────────────────────────────────────────────
 function TaskCard({ task, householdId, isFlagged, onCompleted, onFlag }) {
   const { user } = useAuth();
   const [completing, setCompleting] = useState(false);
@@ -78,7 +81,6 @@ function TaskCard({ task, householdId, isFlagged, onCompleted, onFlag }) {
         borderLeft: isFlagged && !justDone ? "3px solid rgba(245,158,11,0.6)" : "3px solid transparent",
       }}
     >
-      {/* Hold-to-complete icon */}
       <button
         onPointerDown={startHold}
         onPointerUp={cancelHold}
@@ -93,7 +95,6 @@ function TaskCard({ task, householdId, isFlagged, onCompleted, onFlag }) {
           touchAction: "none",
         }}
       >
-        {/* Progress ring */}
         {holdProgress > 0 && (
           <svg className="absolute inset-0 w-full h-full pointer-events-none" viewBox="0 0 56 56">
             <circle cx="28" cy="28" r={RADIUS} fill="none"
@@ -119,7 +120,6 @@ function TaskCard({ task, householdId, isFlagged, onCompleted, onFlag }) {
         </AnimatePresence>
       </button>
 
-      {/* Info */}
       <div className="flex-1 min-w-0">
         <p className="text-game-text font-semibold text-sm leading-tight truncate">{task.name}</p>
         <p className="text-game-muted text-xs mt-0.5 truncate">
@@ -130,7 +130,6 @@ function TaskCard({ task, householdId, isFlagged, onCompleted, onFlag }) {
         </p>
       </div>
 
-      {/* Right: XP + flag */}
       <div className="flex flex-col items-end gap-1.5 shrink-0">
         <span className="font-game font-bold px-2 py-0.5 rounded-lg"
           style={{ color: "#f59e0b", background: "rgba(245,158,11,0.12)", fontSize: "10px" }}>
@@ -140,7 +139,6 @@ function TaskCard({ task, householdId, isFlagged, onCompleted, onFlag }) {
           onClick={() => onFlag?.(task.id, !isFlagged)}
           className="text-base leading-none transition-all active:scale-110"
           style={{ opacity: isFlagged ? 1 : 0.25 }}
-          title={isFlagged ? "Retirer le signalement" : "Signaler à faire"}
         >
           ⚡
         </button>
@@ -149,325 +147,202 @@ function TaskCard({ task, householdId, isFlagged, onCompleted, onFlag }) {
   );
 }
 
-// ── Emojis rapides pour le picker ─────────────────────────────
-const QUICK_EMOJIS = [
-  "🧹","🛒","💊","📦","🐕","🌿","🚗","📮","🔧","💡",
-  "🍳","🧺","🗑️","📞","✂️","🪥","🧴","🪣","🧽","🔑",
-  "📝","💻","🧊","🪟","🛁","🚽","🧻","🪴","🎁","✨",
-];
-
-// ── Modal bottom-sheet : ajouter une mission ponctuelle ────────
-function AddOneShotModal({ visible, onClose, onAdd }) {
-  const [emoji, setEmoji] = useState("✨");
-  const [name, setName] = useState("");
-  const [xpValue, setXpValue] = useState(10);
-
-  function handleClose() {
-    setEmoji("✨");
-    setName("");
-    setXpValue(10);
-    onClose();
-  }
-
-  async function handleAdd() {
-    if (!name.trim()) return;
-    await onAdd({ name: name.trim(), emoji, xpValue });
-    handleClose();
-  }
-
-  return (
-    <AnimatePresence>
-      {visible && (
-        <>
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-40"
-            style={{ background: "rgba(0,0,0,0.65)" }}
-            onClick={handleClose}
-          />
-          <motion.div
-            initial={{ y: "100%" }}
-            animate={{ y: 0 }}
-            exit={{ y: "100%" }}
-            transition={{ type: "spring", damping: 28, stiffness: 300 }}
-            className="fixed bottom-0 left-0 right-0 z-50 rounded-t-3xl px-5 pt-4 pb-10"
-            style={{ background: "#12122a", border: "1px solid #1e1e4a" }}
-          >
-            <div className="w-10 h-1 rounded-full bg-game-border mx-auto mb-4" />
-            <p className="font-pixel text-game-green text-xs mb-4">NOUVELLE MISSION</p>
-
-            {/* Emoji grid */}
-            <div className="grid grid-cols-10 gap-1.5 mb-4">
-              {QUICK_EMOJIS.map((e) => (
-                <button
-                  key={e}
-                  onClick={() => setEmoji(e)}
-                  className="text-xl h-8 w-full rounded-lg flex items-center justify-center"
-                  style={{
-                    background: emoji === e ? "rgba(124,58,237,0.25)" : "rgba(255,255,255,0.05)",
-                    border: emoji === e ? "1px solid #7c3aed" : "1px solid transparent",
-                  }}
-                >
-                  {e}
-                </button>
-              ))}
-            </div>
-
-            {/* Preview + nom */}
-            <div className="flex gap-3 items-center mb-4">
-              <div
-                className="w-12 h-12 rounded-2xl flex items-center justify-center text-2xl shrink-0"
-                style={{ background: "rgba(255,255,255,0.07)" }}
-              >
-                {emoji}
-              </div>
-              <input
-                type="text"
-                placeholder="Nom de la mission..."
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && handleAdd()}
-                className="flex-1 px-4 py-3 rounded-xl text-sm"
-                style={{
-                  background: "rgba(255,255,255,0.07)",
-                  border: "1px solid #1e1e4a",
-                  outline: "none",
-                  color: "#e2e8f0",
-                }}
-                autoFocus
-              />
-            </div>
-
-            {/* Sélecteur XP */}
-            <div className="flex gap-2 mb-5">
-              {[5, 10, 20, 50, 100].map((v) => (
-                <button
-                  key={v}
-                  onClick={() => setXpValue(v)}
-                  className="flex-1 py-2 rounded-xl text-xs font-bold"
-                  style={{
-                    background: xpValue === v ? "rgba(245,158,11,0.2)" : "rgba(255,255,255,0.05)",
-                    color: xpValue === v ? "#f59e0b" : "#888",
-                    border: xpValue === v ? "1px solid rgba(245,158,11,0.5)" : "1px solid transparent",
-                  }}
-                >
-                  {v} XP
-                </button>
-              ))}
-            </div>
-
-            <button
-              onClick={handleAdd}
-              disabled={!name.trim()}
-              className="w-full py-3.5 rounded-2xl font-semibold text-sm"
-              style={{
-                background: name.trim() ? "#7c3aed" : "rgba(124,58,237,0.25)",
-                color: name.trim() ? "#fff" : "#888",
-              }}
-            >
-              Ajouter
-            </button>
-          </motion.div>
-        </>
-      )}
-    </AnimatePresence>
-  );
-}
-
-// ── OneShotCard — 4 états ─────────────────────────────────────
-function OneShotCard({ task, myId, getProfileInfo, onClaim, onUnclaim, onComplete, onDelete }) {
-  const isDone    = !!task.completed_at;
-  const isMine    = !isDone && task.claimed_by === myId;
-  const isPartner = !isDone && !!task.claimed_by && task.claimed_by !== myId;
-
+// ── One-shot Card ────────────────────────────────────────────────────────────
+function OneShotCard({ task, currentUserId, getProfileInfo, onComplete, onClaim, onUnclaim, onDelete }) {
+  const holdRef = useRef(null);
   const [holdProgress, setHoldProgress] = useState(0);
-  const intervalRef = useRef(null);
-  const firedRef    = useRef(false);
+  const [showXP, setShowXP] = useState(false);
 
-  useEffect(() => () => clearInterval(intervalRef.current), []);
+  const isCompleted = !!task.completed_at;
+  const isClaimedByMe = task.claimed_by === currentUserId;
+  const isClaimedByPartner = !!task.claimed_by && !isClaimedByMe;
+  const claimer = getProfileInfo(task.claimed_by);
 
-  function startHold() {
-    if (!isMine || firedRef.current) return;
-    firedRef.current = false;
-    intervalRef.current = setInterval(() => {
-      setHoldProgress((p) => {
-        const next = p + 100 / 30; // ~1.5 s à 50 ms
-        if (next >= 100) {
-          clearInterval(intervalRef.current);
-          if (!firedRef.current) { firedRef.current = true; onComplete(task); }
-          return 0;
-        }
-        return next;
-      });
-    }, 50);
+  function startHold(e) {
+    if (!isClaimedByMe) return;
+    e.preventDefault();
+    const t0 = Date.now();
+    holdRef.current = setInterval(() => {
+      const p = Math.min((Date.now() - t0) / HOLD_DURATION, 1);
+      setHoldProgress(p);
+      if (p >= 1) {
+        clearInterval(holdRef.current);
+        setHoldProgress(0);
+        setShowXP(true);
+        setTimeout(() => setShowXP(false), 900);
+        onComplete(task);
+      }
+    }, 16);
   }
 
-  function stopHold() {
-    clearInterval(intervalRef.current);
+  function cancelHold() {
+    clearInterval(holdRef.current);
     setHoldProgress(0);
   }
 
-  const r             = 22;
-  const CX            = 28;
-  const CY            = 28;
-  const circumference = 2 * Math.PI * r;
-
-  const partnerInfo   = isPartner ? getProfileInfo(task.claimed_by) : null;
-  const completerInfo = isDone    ? getProfileInfo(task.completed_by) : null;
-
-  // ── Complété ──────────────────────────────────────────────
-  if (isDone) {
+  if (isCompleted) {
     return (
       <div className="flex items-center gap-3 px-4 py-3" style={{ opacity: 0.4 }}>
-        <div
-          className="w-12 h-12 rounded-2xl flex items-center justify-center text-2xl shrink-0"
-          style={{ background: "rgba(0,255,136,0.08)", border: "1px solid rgba(0,255,136,0.15)" }}
-        >
+        <div className="shrink-0 w-10 h-10 rounded-xl flex items-center justify-center text-xl"
+          style={{ background: "rgba(0,255,136,0.08)", border: "1px solid rgba(0,255,136,0.15)" }}>
           ✅
         </div>
-        <div className="flex-1 min-w-0">
-          <p className="text-game-text text-sm font-semibold truncate line-through">{task.name}</p>
-          <p className="text-game-muted text-xs mt-0.5">
-            {completerInfo?.username ?? "Complété"} · {formatTimeAgo(task.completed_at)}
-          </p>
-        </div>
-        <span
-          className="text-xs font-bold px-2 py-0.5 rounded-lg shrink-0"
-          style={{ color: "#f59e0b", background: "rgba(245,158,11,0.1)" }}
-        >
-          +{task.xp_value}
-        </span>
+        <p className="flex-1 text-game-text text-sm line-through truncate">{task.name}</p>
+        <span className="font-game text-xs shrink-0" style={{ color: "#f59e0b" }}>+{task.xp_value}</span>
       </div>
     );
   }
 
-  // ── Pris par moi → appui long ─────────────────────────────
-  if (isMine) {
-    return (
-      <div className="flex items-center gap-3 px-4 py-3">
-        <div
-          className="relative shrink-0 cursor-pointer select-none"
-          style={{ width: 56, height: 56, touchAction: "none", WebkitUserSelect: "none" }}
-          onPointerDown={startHold}
-          onPointerUp={stopHold}
-          onPointerLeave={stopHold}
-          onPointerCancel={stopHold}
-        >
-          <svg width="56" height="56" style={{ position: "absolute", inset: 0 }}>
-            <circle cx={CX} cy={CY} r={r} fill="none" stroke="#1e1e4a" strokeWidth="3" />
-            <circle
-              cx={CX} cy={CY} r={r}
-              fill="none"
-              stroke="#7c3aed"
-              strokeWidth="3"
-              strokeLinecap="round"
-              strokeDasharray={circumference}
-              strokeDashoffset={circumference * (1 - holdProgress / 100)}
-              transform={`rotate(-90 ${CX} ${CY})`}
-            />
-          </svg>
-          <div className="absolute inset-0 flex items-center justify-center text-2xl pointer-events-none">
-            {task.emoji}
-          </div>
-        </div>
-
-        <div className="flex-1 min-w-0">
-          <p className="text-game-text text-sm font-semibold truncate">{task.name}</p>
-          <p className="text-game-muted text-xs mt-0.5">
-            {holdProgress > 0 ? "Maintenir pour terminer…" : "Appuyer longuement"}
-          </p>
-        </div>
-
-        <div className="flex flex-col items-end gap-1.5 shrink-0">
-          <span className="text-xs font-bold px-2 py-0.5 rounded-lg"
-            style={{ color: "#f59e0b", background: "rgba(245,158,11,0.12)" }}>
-            +{task.xp_value}
-          </span>
-          <button onClick={() => onUnclaim(task.id)} className="text-game-muted text-xs">
-            Annuler
-          </button>
-        </div>
-      </div>
-    );
-  }
-
-  // ── Pris par le partenaire ────────────────────────────────
-  if (isPartner) {
-    return (
-      <div className="flex items-center gap-3 px-4 py-3">
-        <div
-          className="w-12 h-12 rounded-2xl flex items-center justify-center text-2xl shrink-0"
-          style={{
-            background: "rgba(255,255,255,0.04)",
-            border: "1px solid #1e1e4a",
-            opacity: 0.55,
-            filter: "grayscale(0.6)",
-          }}
-        >
-          {task.emoji}
-        </div>
-        <div className="flex-1 min-w-0">
-          <p className="text-game-text text-sm font-semibold truncate">{task.name}</p>
-          <p className="text-game-muted text-xs mt-0.5">
-            {partnerInfo?.avatar_emoji} {partnerInfo?.username ?? "Partenaire"} s'en occupe
-          </p>
-        </div>
-        <div className="flex flex-col items-end gap-1.5 shrink-0">
-          <span className="text-xs font-bold px-2 py-0.5 rounded-lg"
-            style={{ color: "#f59e0b", background: "rgba(245,158,11,0.12)" }}>
-            +{task.xp_value}
-          </span>
-          <button onClick={() => onUnclaim(task.id)} className="text-game-muted text-xs">
-            Annuler
-          </button>
-        </div>
-      </div>
-    );
-  }
-
-  // ── Libre ─────────────────────────────────────────────────
   return (
     <div className="flex items-center gap-3 px-4 py-3">
-      <div
-        className="w-12 h-12 rounded-2xl flex items-center justify-center text-2xl shrink-0"
-        style={{ background: "rgba(124,58,237,0.1)", border: "1px solid rgba(124,58,237,0.25)" }}
-      >
-        {task.emoji}
-      </div>
+      {isClaimedByMe ? (
+        <button
+          onPointerDown={startHold}
+          onPointerUp={cancelHold}
+          onPointerLeave={cancelHold}
+          onPointerCancel={cancelHold}
+          className="relative shrink-0 w-10 h-10 rounded-xl flex items-center justify-center text-xl select-none"
+          style={{ background: "rgba(124,58,237,0.15)", border: "1.5px solid rgba(124,58,237,0.4)", touchAction: "none" }}
+        >
+          {holdProgress > 0 && (
+            <svg className="absolute inset-0 w-full h-full pointer-events-none" viewBox="0 0 40 40">
+              <circle cx="20" cy="20" r="17" fill="none" stroke="#7c3aed" strokeWidth="2.5"
+                strokeDasharray={2 * Math.PI * 17}
+                strokeDashoffset={2 * Math.PI * 17 * (1 - holdProgress)}
+                strokeLinecap="round"
+                style={{ transform: "rotate(-90deg)", transformOrigin: "20px 20px" }}
+              />
+            </svg>
+          )}
+          {task.emoji}
+          <AnimatePresence>{showXP && <XPGainPopup xp={task.xp_value} visible />}</AnimatePresence>
+        </button>
+      ) : (
+        <div className="shrink-0 w-10 h-10 rounded-xl flex items-center justify-center text-xl"
+          style={{
+            background: isClaimedByPartner ? "rgba(100,116,139,0.08)" : "rgba(245,158,11,0.08)",
+            border: `1px solid ${isClaimedByPartner ? "rgba(100,116,139,0.2)" : "rgba(245,158,11,0.2)"}`,
+            opacity: isClaimedByPartner ? 0.6 : 1,
+          }}>
+          {task.emoji}
+        </div>
+      )}
+
       <div className="flex-1 min-w-0">
         <p className="text-game-text text-sm font-semibold truncate">{task.name}</p>
-        <span className="text-xs font-bold px-2 py-0.5 rounded-lg"
-          style={{ color: "#f59e0b", background: "rgba(245,158,11,0.12)" }}>
-          +{task.xp_value}
-        </span>
+        {isClaimedByMe && (
+          <p className="text-xs" style={{ color: "#a78bfa" }}>Appui long pour terminer</p>
+        )}
+        {isClaimedByPartner && claimer && (
+          <p className="text-game-muted text-xs truncate">
+            {claimer.avatar_emoji} {claimer.username} s'en occupe
+          </p>
+        )}
       </div>
-      <div className="flex items-center gap-2 shrink-0">
-        <button
-          onClick={() => onClaim(task.id)}
-          className="px-3 py-1.5 rounded-xl text-xs font-semibold"
-          style={{
-            background: "rgba(124,58,237,0.2)",
-            color: "#a78bfa",
-            border: "1px solid rgba(124,58,237,0.4)",
-          }}
-        >
-          Je m'en occupe
+
+      <span className="font-game text-xs shrink-0" style={{ color: "#f59e0b" }}>+{task.xp_value}</span>
+
+      {!task.claimed_by ? (
+        <>
+          <button onClick={() => onClaim(task.id)}
+            className="font-game font-bold px-2 py-1 rounded-lg shrink-0 whitespace-nowrap"
+            style={{ background: "rgba(124,58,237,0.12)", color: "#a78bfa", fontSize: "10px" }}>
+            Je m'en occupe
+          </button>
+          <button onClick={() => onDelete(task.id)} className="shrink-0 text-game-muted text-sm ml-0.5">×</button>
+        </>
+      ) : (
+        <button onClick={() => onUnclaim(task.id)}
+          className="font-game px-2 py-1 rounded-lg shrink-0"
+          style={{ background: "rgba(100,116,139,0.12)", color: "#64748b", fontSize: "10px" }}>
+          Annuler
         </button>
-        <button
-          onClick={() => onDelete(task.id)}
-          className="w-7 h-7 rounded-full flex items-center justify-center text-lg leading-none"
-          style={{ background: "rgba(255,255,255,0.06)", color: "#64748b" }}
-        >
-          ×
-        </button>
-      </div>
+      )}
     </div>
   );
 }
 
-// ── Dashboard ────────────────────────────────────────────────
+// ── Add One-shot Modal ───────────────────────────────────────────────────────
+function AddOneShotModal({ onAdd, onClose }) {
+  const [name, setName] = useState("");
+  const [emoji, setEmoji] = useState("📋");
+  const [xp, setXp] = useState(20);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
+
+  async function handleAdd() {
+    if (!name.trim()) return;
+    setLoading(true);
+    setError(null);
+    const err = await onAdd({ name: name.trim(), emoji, xp_value: xp });
+    setLoading(false);
+    if (err) setError(err);
+  }
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-end justify-center"
+      style={{ background: "rgba(0,0,0,0.7)" }}
+      onClick={(e) => e.target === e.currentTarget && onClose()}
+    >
+      <motion.div
+        initial={{ y: "100%" }} animate={{ y: 0 }} exit={{ y: "100%" }}
+        transition={{ type: "spring", stiffness: 400, damping: 40 }}
+        className="w-full max-w-lg rounded-t-3xl p-5 space-y-4"
+        style={{ background: "#0a0a1a", border: "1px solid #1e1e4a" }}
+      >
+        <div className="flex items-center justify-between">
+          <h3 className="font-game font-bold text-game-text">Nouvelle quête</h3>
+          <button onClick={onClose} className="text-game-muted text-xl leading-none">✕</button>
+        </div>
+
+        <div className="flex flex-wrap gap-2">
+          {ONE_SHOT_EMOJIS.map((e) => (
+            <button key={e} onClick={() => setEmoji(e)}
+              className="text-xl p-2 rounded-xl transition-all"
+              style={{ background: emoji === e ? "rgba(245,158,11,0.25)" : "rgba(255,255,255,0.04)" }}>
+              {e}
+            </button>
+          ))}
+        </div>
+
+        <input
+          value={name} onChange={(e) => setName(e.target.value)}
+          onKeyDown={(e) => e.key === "Enter" && handleAdd()}
+          placeholder="Nom de la quête..." maxLength={50} autoFocus
+          className="w-full bg-game-bg border border-game-border rounded-xl px-3 py-2.5 text-sm text-game-text placeholder-game-muted focus:outline-none focus:border-game-cyan"
+        />
+
+        <div>
+          <p className="font-game text-game-muted text-xs mb-2">XP · difficulté / durée</p>
+          <div className="flex gap-2">
+            {XP_OPTIONS.map((v) => (
+              <button key={v} onClick={() => setXp(v)}
+                className="flex-1 font-game font-bold text-xs py-2 rounded-xl transition-all"
+                style={{
+                  background: xp === v ? "rgba(245,158,11,0.25)" : "rgba(255,255,255,0.04)",
+                  color: xp === v ? "#f59e0b" : "#64748b",
+                  border: xp === v ? "1px solid rgba(245,158,11,0.4)" : "1px solid transparent",
+                }}>
+                {v}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {error && <p className="text-xs font-game" style={{ color: "#ef4444" }}>⚠️ {error}</p>}
+
+        <button onClick={handleAdd} disabled={!name.trim() || loading}
+          className="w-full font-game font-bold text-sm py-3 rounded-2xl disabled:opacity-40"
+          style={{ background: "rgba(124,58,237,0.3)", color: "#a78bfa", border: "1px solid rgba(124,58,237,0.4)" }}>
+          {loading ? "Ajout..." : "Ajouter la quête"}
+        </button>
+      </motion.div>
+    </div>
+  );
+}
+
+// ── Dashboard ────────────────────────────────────────────────────────────────
 export default function DashboardPage() {
   const { user, profile, refreshProfile } = useAuth();
   const [partner, setPartner] = useState(null);
@@ -475,17 +350,22 @@ export default function DashboardPage() {
   const [tasks, setTasks] = useState([]);
   const [flags, setFlags] = useState(new Set());
   const [loadingTasks, setLoadingTasks] = useState(true);
+  const [tasksError, setTasksError] = useState(null);
   const [levelUpVisible, setLevelUpVisible] = useState(false);
   const [xpFlash, setXpFlash] = useState(null);
   const [prevLevel, setPrevLevel] = useState(profile?.level ?? 1);
   const [oneShotTasks, setOneShotTasks] = useState([]);
-  const [showAddModal, setShowAddModal] = useState(false);
-  const [tasksError, setTasksError] = useState(null);
-  const [showCompletedOneShot, setShowCompletedOneShot] = useState(false);
-  const [completedOneShotTasks, setCompletedOneShotTasks] = useState([]);
-  const [loadingCompleted, setLoadingCompleted] = useState(false);
+  const [showModal, setShowModal] = useState(false);
+  const [earlyExpanded, setEarlyExpanded] = useState(false);
 
   const householdId = profile?.household_id;
+
+  function getProfileInfo(userId) {
+    if (!userId) return null;
+    if (userId === profile?.id) return profile;
+    if (userId === partner?.id) return partner;
+    return null;
+  }
 
   // ── Fetch periodic tasks ──
   const fetchTasks = useCallback(async () => {
@@ -495,7 +375,6 @@ export default function DashboardPage() {
       supabase.from("task_completions_latest").select("*").eq("household_id", householdId),
     ]);
     if (taskTypesError) {
-      console.error("fetchTasks error:", taskTypesError);
       setTasksError(taskTypesError.message);
       setLoadingTasks(false);
       return;
@@ -540,85 +419,60 @@ export default function DashboardPage() {
     }
   }
 
-  // ── Fetch one-shot tasks ──
+  // ── Fetch one-shot tasks (active + completed < 24h) ──
   const fetchOneShotTasks = useCallback(async () => {
     if (!householdId) return;
     const since24h = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
     const { data, error } = await supabase
-      .from("one_shot_tasks").select("*").eq("household_id", householdId)
+      .from("one_shot_tasks")
+      .select("*")
+      .eq("household_id", householdId)
       .or(`completed_at.is.null,completed_at.gte.${since24h}`)
-      .order("created_at", { ascending: false });
+      .order("created_at");
     if (!error) setOneShotTasks(data ?? []);
   }, [householdId]);
 
   useEffect(() => { fetchOneShotTasks(); }, [fetchOneShotTasks]);
 
-  async function addOneShotTask({ name, emoji, xpValue }) {
-    if (!householdId) return;
+  async function addOneShotTask({ name, emoji, xp_value }) {
     const { data, error } = await supabase.from("one_shot_tasks")
-      .insert({ name, emoji, xp_value: xpValue, household_id: householdId, created_by: user.id })
+      .insert({ name, emoji, xp_value, household_id: householdId })
       .select().single();
-    if (!error && data) setOneShotTasks((prev) => [data, ...prev]);
+    if (error) return error.message;
+    if (data) {
+      setOneShotTasks((prev) => [...prev, data]);
+      setShowModal(false);
+    }
+    return null;
   }
 
   async function claimOneShotTask(id) {
     const now = new Date().toISOString();
     await supabase.from("one_shot_tasks")
-      .update({ claimed_by: user.id, claimed_at: now })
-      .eq("id", id);
-    setOneShotTasks((p) => p.map((t) =>
-      t.id === id ? { ...t, claimed_by: user.id, claimed_at: now } : t
-    ));
+      .update({ claimed_by: user.id, claimed_at: now }).eq("id", id);
+    setOneShotTasks((prev) => prev.map((t) => t.id === id ? { ...t, claimed_by: user.id, claimed_at: now } : t));
   }
 
   async function unclaimOneShotTask(id) {
     await supabase.from("one_shot_tasks")
-      .update({ claimed_by: null, claimed_at: null })
-      .eq("id", id);
-    setOneShotTasks((p) => p.map((t) =>
-      t.id === id ? { ...t, claimed_by: null, claimed_at: null } : t
-    ));
+      .update({ claimed_by: null, claimed_at: null }).eq("id", id);
+    setOneShotTasks((prev) => prev.map((t) => t.id === id ? { ...t, claimed_by: null, claimed_at: null } : t));
   }
 
   async function completeOneShotTask(task) {
     const now = new Date().toISOString();
     await supabase.from("one_shot_tasks")
-      .update({ completed_at: now, completed_by: user.id, claimed_by: null, claimed_at: null })
-      .eq("id", task.id);
-    setOneShotTasks((p) => p.map((t) =>
-      t.id === task.id
-        ? { ...t, completed_at: now, completed_by: user.id, claimed_by: null, claimed_at: null }
-        : t
+      .update({ completed_at: now, completed_by: user.id, claimed_by: null, claimed_at: null }).eq("id", task.id);
+    setOneShotTasks((prev) => prev.map((t) =>
+      t.id === task.id ? { ...t, completed_at: now, completed_by: user.id, claimed_by: null, claimed_at: null } : t
     ));
     handleXPGained(task.xp_value);
+    refreshProfile();
   }
 
   async function deleteOneShotTask(id) {
     await supabase.from("one_shot_tasks").delete().eq("id", id);
     setOneShotTasks((prev) => prev.filter((t) => t.id !== id));
-  }
-
-  function getProfileInfo(userId) {
-    if (!userId) return null;
-    return userId === user.id ? profile : partner;
-  }
-
-  const fetchCompletedOneShotTasks = useCallback(async () => {
-    if (!householdId) return;
-    setLoadingCompleted(true);
-    const { data, error } = await supabase
-      .from("one_shot_tasks").select("*").eq("household_id", householdId)
-      .not("completed_at", "is", null)
-      .order("completed_at", { ascending: false }).limit(30);
-    if (!error) setCompletedOneShotTasks(data ?? []);
-    else console.error("fetchCompletedOneShotTasks error:", error);
-    setLoadingCompleted(false);
-  }, [householdId]);
-
-  function toggleCompletedOneShot() {
-    const next = !showCompletedOneShot;
-    setShowCompletedOneShot(next);
-    if (next && completedOneShotTasks.length === 0) fetchCompletedOneShotTasks();
   }
 
   // ── Fetch partner + invite code ──
@@ -630,7 +484,7 @@ export default function DashboardPage() {
       .then(({ data }) => setInviteCode(data?.invite_code ?? null));
   }, [householdId, user.id]);
 
-  // ── Realtime: completions, profiles, flags, one_shot_tasks ──
+  // ── Realtime ──
   useEffect(() => {
     if (!householdId) return;
     const ch = supabase.channel(`dashboard-${householdId}`)
@@ -658,8 +512,13 @@ export default function DashboardPage() {
     setTimeout(() => setXpFlash(null), 2000);
   }
 
+  // ── Computed ──
+  const activeTasks = tasks.filter((t) => t.urgency > URGENCY_THRESHOLD);
+  const earlyTasks = tasks.filter((t) => t.urgency <= URGENCY_THRESHOLD);
   const overdueCount = tasks.filter((t) => t.urgency >= 1).length;
   const flagCount = flags.size;
+  const activeOneShotTasks = oneShotTasks.filter((t) => !t.completed_at);
+  const completedOneShotTasks = oneShotTasks.filter((t) => !!t.completed_at);
 
   return (
     <div className="flex flex-col h-full">
@@ -692,118 +551,131 @@ export default function DashboardPage() {
 
       {/* Scroll area */}
       <div className="flex-1 overflow-y-auto pb-24">
-        {/* Periodic tasks */}
         {loadingTasks ? (
           <p className="text-center font-pixel text-game-green text-xs py-10 animate-pulse">CHARGEMENT DES QUÊTES...</p>
         ) : tasksError ? (
           <div className="text-center py-10 px-4">
-            <div className="text-4xl mb-3">⚠️</div>
-            <p className="font-game text-game-red font-bold text-sm">Erreur de chargement</p>
-            <p className="text-game-muted text-xs mt-1">{tasksError}</p>
+            <p className="font-game text-game-red font-bold text-sm">⚠️ {tasksError}</p>
             <button onClick={fetchTasks} className="mt-3 font-game font-bold text-xs px-3 py-2 rounded-xl"
               style={{ background: "rgba(0,255,136,0.12)", color: "#00ff88" }}>Réessayer</button>
           </div>
-        ) : tasks.length === 0 ? (
-          <div className="text-center py-10">
-            <div className="text-4xl mb-3">📋</div>
-            <p className="font-game text-game-muted font-bold">Aucune tâche configurée</p>
-          </div>
         ) : (
-          <div className="px-4 py-3">
-            <p className="font-game font-semibold text-game-muted text-xs tracking-wider uppercase mb-2">
-              QUÊTES · appui long pour valider
-            </p>
-            <div className="rounded-2xl overflow-hidden" style={{ background: "#12122a", border: "1px solid #1e1e4a" }}>
-              {tasks.map((task, i) => (
-                <div key={task.id}>
-                  <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: i * 0.03 }}>
-                    <TaskCard
-                      task={task}
-                      householdId={householdId}
-                      isFlagged={flags.has(task.id)}
-                      onCompleted={handleXPGained}
-                      onFlag={toggleFlag}
-                    />
-                  </motion.div>
-                  {i < tasks.length - 1 && <div className="ml-20 h-px" style={{ background: "#1e1e4a" }} />}
+          <>
+            {/* Active periodic tasks */}
+            <div className="px-4 py-3">
+              {activeTasks.length === 0 ? (
+                <div className="text-center py-6">
+                  <div className="text-4xl mb-3">🎉</div>
+                  <p className="font-game text-game-green font-bold text-sm">TOUT EST FAIT !</p>
+                  <p className="text-game-muted text-xs mt-1">Bravo, la maison est nickel.</p>
                 </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* One-shot tasks */}
-        <div className="px-4 pt-2 pb-3">
-          <div className="flex items-center justify-between mb-2">
-            <h2 className="font-game font-semibold text-xs tracking-wider uppercase" style={{ color: "#f59e0b" }}>À FAIRE</h2>
-            <button onClick={() => setShowAddModal(true)}
-              className="font-game font-bold text-xs px-2 py-1 rounded-lg"
-              style={{ color: "#f59e0b", background: "rgba(245,158,11,0.12)" }}>
-              + AJOUTER
-            </button>
-          </div>
-
-          {oneShotTasks.filter((t) => !t.completed_at).length > 0 ? (
-            <div className="rounded-2xl overflow-hidden" style={{ background: "#12122a", border: "1px solid #1e1e4a" }}>
-              <AnimatePresence>
-                {oneShotTasks.filter((t) => !t.completed_at).map((task, i, arr) => (
-                  <div key={task.id}>
-                    <OneShotCard
-                      task={task}
-                      myId={user.id}
-                      getProfileInfo={getProfileInfo}
-                      onClaim={claimOneShotTask}
-                      onUnclaim={unclaimOneShotTask}
-                      onComplete={completeOneShotTask}
-                      onDelete={deleteOneShotTask}
-                    />
-                    {i < arr.length - 1 && <div className="ml-16 h-px" style={{ background: "#1e1e4a" }} />}
+              ) : (
+                <>
+                  <p className="font-game font-semibold text-game-muted text-xs tracking-wider uppercase mb-2">
+                    QUÊTES · appui long pour valider
+                  </p>
+                  <div className="rounded-2xl overflow-hidden" style={{ background: "#12122a", border: "1px solid #1e1e4a" }}>
+                    {activeTasks.map((task, i) => (
+                      <div key={task.id}>
+                        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: i * 0.03 }}>
+                          <TaskCard
+                            task={task} householdId={householdId}
+                            isFlagged={flags.has(task.id)}
+                            onCompleted={handleXPGained} onFlag={toggleFlag}
+                          />
+                        </motion.div>
+                        {i < activeTasks.length - 1 && <div className="ml-20 h-px" style={{ background: "#1e1e4a" }} />}
+                      </div>
+                    ))}
                   </div>
-                ))}
-              </AnimatePresence>
-            </div>
-          ) : (
-            <p className="text-game-muted text-xs text-center py-3 font-game">Aucune quête en cours</p>
-          )}
-
-          {/* Completed one-shot tasks history */}
-          <div className="mt-3">
-            <button
-              onClick={toggleCompletedOneShot}
-              className="font-game text-xs font-semibold tracking-wider"
-              style={{ color: "#6b7280" }}
-            >
-              {showCompletedOneShot ? "▾" : "▸"} TERMINÉES
-              {completedOneShotTasks.length > 0 && ` (${completedOneShotTasks.length})`}
-            </button>
-            <AnimatePresence>
-              {showCompletedOneShot && (
-                <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }}
-                  exit={{ opacity: 0, height: 0 }} className="overflow-hidden mt-2">
-                  {loadingCompleted ? (
-                    <p className="text-game-muted text-xs text-center py-3 font-game animate-pulse">Chargement...</p>
-                  ) : completedOneShotTasks.length === 0 ? (
-                    <p className="text-game-muted text-xs text-center py-3 font-game">Aucune quête terminée</p>
-                  ) : (
-                    <div className="rounded-2xl overflow-hidden" style={{ background: "#12122a", border: "1px solid #1e1e4a" }}>
-                      {completedOneShotTasks.map((task, i) => (
-                        <div key={task.id}>
-                          <div className="flex items-center gap-3 px-4 py-2.5 opacity-60">
-                            <span className="text-xl shrink-0">{task.emoji}</span>
-                            <p className="flex-1 text-game-text text-xs truncate line-through">{task.name}</p>
-                            <span className="text-game-muted text-xs shrink-0">{formatTimeAgo(task.completed_at)}</span>
-                          </div>
-                          {i < completedOneShotTasks.length - 1 && <div className="ml-14 h-px" style={{ background: "#1e1e4a" }} />}
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </motion.div>
+                </>
               )}
-            </AnimatePresence>
-          </div>
-        </div>
+            </div>
+
+            {/* Early tasks (collapsible) */}
+            {earlyTasks.length > 0 && (
+              <div className="px-4 pb-3">
+                <button
+                  onClick={() => setEarlyExpanded((v) => !v)}
+                  className="flex items-center gap-1.5 font-game font-semibold text-xs tracking-wider uppercase text-game-muted mb-2"
+                >
+                  <span style={{ display: "inline-block", transition: "transform 0.2s", transform: earlyExpanded ? "rotate(90deg)" : "rotate(0deg)" }}>▶</span>
+                  Faire en avance ({earlyTasks.length})
+                </button>
+                <AnimatePresence>
+                  {earlyExpanded && (
+                    <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }}
+                      exit={{ opacity: 0, height: 0 }} className="overflow-hidden">
+                      <div className="rounded-2xl overflow-hidden" style={{ background: "#12122a", border: "1px solid #1e1e4a", opacity: 0.7 }}>
+                        {earlyTasks.map((task, i) => (
+                          <div key={task.id}>
+                            <TaskCard
+                              task={task} householdId={householdId}
+                              isFlagged={flags.has(task.id)}
+                              onCompleted={handleXPGained} onFlag={toggleFlag}
+                            />
+                            {i < earlyTasks.length - 1 && <div className="ml-20 h-px" style={{ background: "#1e1e4a" }} />}
+                          </div>
+                        ))}
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
+            )}
+
+            {/* One-shot tasks */}
+            <div className="px-4 pt-2 pb-3">
+              <div className="flex items-center justify-between mb-2">
+                <h2 className="font-game font-semibold text-xs tracking-wider uppercase" style={{ color: "#f59e0b" }}>
+                  À FAIRE{activeOneShotTasks.length > 0 && ` (${activeOneShotTasks.length})`}
+                </h2>
+                <button onClick={() => setShowModal(true)}
+                  className="font-game font-bold text-xs px-2 py-1 rounded-lg"
+                  style={{ color: "#f59e0b", background: "rgba(245,158,11,0.12)" }}>
+                  + AJOUTER
+                </button>
+              </div>
+
+              {activeOneShotTasks.length === 0 && completedOneShotTasks.length === 0 ? (
+                <p className="text-game-muted text-xs text-center py-3 font-game">Aucune quête en cours</p>
+              ) : (
+                <div className="rounded-2xl overflow-hidden" style={{ background: "#12122a", border: "1px solid #1e1e4a" }}>
+                  {activeOneShotTasks.map((task, i) => (
+                    <div key={task.id}>
+                      <OneShotCard
+                        task={task} currentUserId={user.id} getProfileInfo={getProfileInfo}
+                        onComplete={completeOneShotTask} onClaim={claimOneShotTask}
+                        onUnclaim={unclaimOneShotTask} onDelete={deleteOneShotTask}
+                      />
+                      {(i < activeOneShotTasks.length - 1 || completedOneShotTasks.length > 0) && (
+                        <div className="ml-16 h-px" style={{ background: "#1e1e4a" }} />
+                      )}
+                    </div>
+                  ))}
+                  {completedOneShotTasks.map((task, i) => (
+                    <div key={task.id}>
+                      <OneShotCard
+                        task={task} currentUserId={user.id} getProfileInfo={getProfileInfo}
+                        onComplete={completeOneShotTask} onClaim={claimOneShotTask}
+                        onUnclaim={unclaimOneShotTask} onDelete={deleteOneShotTask}
+                      />
+                      {i < completedOneShotTasks.length - 1 && (
+                        <div className="ml-16 h-px" style={{ background: "#1e1e4a" }} />
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </>
+        )}
       </div>
+
+      {/* Add one-shot modal */}
+      <AnimatePresence>
+        {showModal && <AddOneShotModal onAdd={addOneShotTask} onClose={() => setShowModal(false)} />}
+      </AnimatePresence>
 
       {/* Level up overlay */}
       <AnimatePresence>
@@ -820,13 +692,6 @@ export default function DashboardPage() {
           </motion.div>
         )}
       </AnimatePresence>
-
-      {/* Add one-shot modal */}
-      <AddOneShotModal
-        visible={showAddModal}
-        onClose={() => setShowAddModal(false)}
-        onAdd={addOneShotTask}
-      />
     </div>
   );
 }
