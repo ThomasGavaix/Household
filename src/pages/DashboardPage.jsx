@@ -79,7 +79,7 @@ function TaskCard({ task, currentUserId, getProfileInfo, isFlagged, onTap }) {
         style={{ fontSize: "9px", color: isClaimedByMe ? "#a78bfa" : isClaimedByPartner ? "#00d4ff" : "#475569" }}>
         {isClaimedByMe ? "Je m'en occupe"
           : isClaimedByPartner && claimer ? `${claimer.username} s'en occupe`
-          : task.last_completed_username ? `${task.last_completed_avatar} ${formatTimeAgo(task.last_completed_at)}`
+          : task.last_completed_username ? `${task.last_completed_avatar} ${task.last_completed_username} · ${formatTimeAgo(task.last_completed_at)}`
           : <span style={{ color: urgencyColor }}>Jamais fait</span>}
       </p>
     </button>
